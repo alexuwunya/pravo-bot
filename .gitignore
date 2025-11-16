@@ -1,0 +1,7 @@
+﻿*.db
+*.db-journal
+__pycache__/
+*.pyc
+.vscode/
+photos/
+users_db/
