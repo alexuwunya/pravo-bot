@@ -3,10 +3,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance
 import requests
 
-#Рабочая раг система, отвечает на запросы пользователя по конституции
 class RAGSystem:
     def __init__(self, paragraph):
-        print('init')
         self.model = SentenceTransformer("intfloat/multilingual-e5-large")
         self.client = QdrantClient(path="\\qdrant_client")
         self.api_key = "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"
@@ -16,7 +14,6 @@ class RAGSystem:
         self.create_embeddings_if_not_exists()
 
     def get_articles_chunks(self):
-        print('gettin chunks')
         codex = self.codex
         articles = codex.split("Статья")
         chunks = []
@@ -39,7 +36,6 @@ class RAGSystem:
         return chunks
 
     def create_embeddings_if_not_exists(self):
-        print('creatin embeddings')
         if not self.client.collection_exists("constitution_articles"):
             self.client.create_collection(
                 collection_name="constitution_articles",
@@ -75,7 +71,6 @@ class RAGSystem:
         print(f"Сохранено {len(points)} точек в векторную БД")
 
     def search_relevant_chunks(self, question, limit=5):
-        print('searchin')
         query_text = f"query: {question}"
         query_vector = self.model.encode(query_text, normalize_embeddings=True)
 
@@ -93,7 +88,6 @@ class RAGSystem:
         return "\n\n".join(context_parts)
 
     def ask_llm(self, question, context):
-        print('askin')
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -144,19 +138,6 @@ class RAGSystem:
             return f"Ошибка при обращении к сервису: {str(e)}"
 
     def answer_question(self, question):
-        print('answerin')
         context = self.search_relevant_chunks(question)
-        print('askin llm')
         answer = self.ask_llm(question, context)
-        print('suda')
         return answer
-
-#Тестирование
-if __name__ == "__main__":
-    with open("C:\\Users\\ililio\\Desktop\\constitution.txt", "r", encoding="utf-8") as f:
-        text = f.read()
-    print('lol')
-    rag_system = RAGSystem(text)
-    while True:
-        ans = rag_system.answer_question(input())
-        print(ans)
