@@ -17,7 +17,7 @@ from сonstitution_search import constitution_search_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = '8565646689:AAFFpRkZECKYYIr1laEW6a301algCZ3Qb1Q'
+BOT_TOKEN = '8570949555:AAEd_1zDKV3F_7gNG5wsl_gnbYa9-dqRyI8'
 
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()

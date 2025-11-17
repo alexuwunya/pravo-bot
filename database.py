@@ -140,4 +140,18 @@ class ConstitutionDatabase:
             }
         return None
 
+    def get_constitution_text(self):
+        """Получает полный текст Конституции из БД"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT full_text FROM constitution_text LIMIT 1')
+        result = cursor.fetchone()
+
+        conn.close()
+
+        if result:
+            return result[0]
+        return None
+
 constitution_db = ConstitutionDatabase()
