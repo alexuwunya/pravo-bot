@@ -8,7 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 import logging
 import re
-from database import constitution_db
+from database_constitution import constitution_db
 from ragsystem import RAGSystem
 
 logging.basicConfig(level=logging.INFO)
