@@ -1,15 +1,10 @@
 from aiogram import Bot, Dispatcher, types, F, Router
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile, ContentType
-from aiogram.filters import CommandStart, Command
-from aiogram.fsm.context import FSMContext
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 import logging
 import asyncio
-import requests
-from bs4 import BeautifulSoup
-import re
 from articles_search import news_router
 from important_articles import important_news_router
 from сonstitution_search import constitution_search_router
@@ -26,7 +21,6 @@ callback_router = Router()
 dp.include_router(news_router)
 dp.include_router(important_news_router)
 dp.include_router(constitution_search_router)
-from database import constitution_db
 
 class Operation(StatesGroup):
     waiting_for_keyword = State()

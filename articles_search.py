@@ -7,6 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import logging
 import requests
 from bs4 import BeautifulSoup
+from news_database import news_db, update_news_database, search_news_in_database
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,6 +19,12 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 news_router = Router()
+
+@news_router.startup()
+async def on_startup():
+    """Автоматически обновляет базу данных при старте"""
+    logger.info("Проверяем обновление базы данных новостей...")
+    await update_news_database()
 
 class Operation(StatesGroup):
     waiting_for_keyword = State()
@@ -53,12 +60,10 @@ def parse_news_card(card):
         else:
             return None
         
-        # Дата публикации - ищем div с классом news-single-date
         date_elem = card.find('div', class_='news-single-date')
         if date_elem:
             article_data['date'] = date_elem.get_text(strip=True)
         
-        # Категория новости - ищем div с классом arhive-section-title
         category_elem = card.find('div', class_='arhive-section-title')
         if category_elem:
             category_text = category_elem.get_text(strip=True)
@@ -70,8 +75,10 @@ def parse_news_card(card):
         print(f"❌ Ошибка парсинга карточки: {str(e)}")
         return None
 
-async def search_news_by_keyword(keyword, max_pages=50, target_count=15):
+async def search_news_by_keyword(keyword, max_pages=50, target_count=20):
+    """Ищет новости по ключевому слову"""
     found_articles = []
+    logger.info(f"🔍 Начинаем поиск статей по ключевому слову: {keyword}")
     
     for page in range(1, max_pages + 1):
         try:
@@ -89,18 +96,13 @@ async def search_news_by_keyword(keyword, max_pages=50, target_count=15):
             news_container = soup.find('div', id='news-container')
             
             if not news_container:
-                print(f"❌ Контейнер новостей не найден на странице {page}")
                 if page >= 3:
-                    print("🚫 Контейнер не найден на 3 страницах подряд, останавливаем поиск")
                     break
                 continue
 
             news_cards = news_container.find_all('div', class_='news-single-item')
-            
-            print(f"📄 Страница {page}: найдено {len(news_cards)} карточек новостей")
 
             if not news_cards:
-                print(f"🚫 На странице {page} нет карточек новостей, останавливаем поиск")
                 break
 
             page_articles = []
@@ -116,28 +118,27 @@ async def search_news_by_keyword(keyword, max_pages=50, target_count=15):
                 if (keyword.lower() in title or keyword.lower() in category):
                     found_articles.append(article)
 
-                    if len(found_articles) >= target_count:
-                        print(f"🎯 Найдено {len(found_articles)} статей, останавливаем поиск")
+                    if len(found_articles) >= 20:
+                        logger.info(f"✅ Найдено {len(found_articles)} статей, останавливаем поиск")
                         return found_articles
             
-            if page == 51:
+            if page == 50:
                 break
-
-            print(f"📊 Итого: страница {page} - найдено {len(found_articles)} подходящих статей")
             
         except Exception as e:
-            print(f"❌ Ошибка на странице {page}: {str(e)}")
             continue
     
-    print(f"✅ Поиск завершен. Всего найдено {len(found_articles)} статей")
+    logger.info(f"✅ Поиск завершен. Всего найдено {len(found_articles)} статей")
     return found_articles
 
 def create_articles_keyboard(articles):
     builder = InlineKeyboardBuilder()
+
+    limited_articles = articles[:20]
     
-    for i, article in enumerate(articles):
+    for i, article in enumerate(limited_articles):
         title = article['title']
-        preview = title[:35] + "..." if len(title) > 35 else title
+        preview = title[:30] + "..." if len(title) > 30 else title
         
         builder.add(InlineKeyboardButton(
             text=f"📰 {i+1}. {preview}",
@@ -160,6 +161,7 @@ async def state_search(callback: types.CallbackQuery, state: FSMContext):
     )
     await state.set_state(Operation.waiting_for_article_selection)
 
+
 @news_router.message(Operation.waiting_for_article_selection)
 async def process_news_keyword(message: types.Message, state: FSMContext):
     keyword = message.text.strip()
@@ -168,9 +170,17 @@ async def process_news_keyword(message: types.Message, state: FSMContext):
         await message.answer("Пожалуйста, введите ключевое слово для поиска.")
         return
     
-    await message.answer("🔍 Ищу статьи... Это может занять несколько секунд")
+    await message.answer("🔍 Ищу статьи в базе данных...")
     
-    articles = await search_news_by_keyword(keyword, max_pages=400, target_count=15)
+    articles = search_news_in_database(keyword)
+    
+    if articles:
+        source_info = "📚 (из базы данных)"
+    else:
+        # Если в базе нет, ищем на сайте
+        await message.answer("🔄 Статьи не найдены в базе. Ищу на сайте...")
+        articles = await search_news_by_keyword(keyword, max_pages=10, target_count=15)
+        source_info = "🌐 (с сайта)"
     
     if not articles:
         await message.answer(
@@ -179,17 +189,17 @@ async def process_news_keyword(message: types.Message, state: FSMContext):
         )
         await state.clear()
         return
-    
-    # Сохраняем статьи в состоянии
+
     await state.update_data({
         'articles': articles,
         'keyword': keyword
     })
+
+    limited_articles = articles[:20]
+    keyboard = create_articles_keyboard(limited_articles)
     
-    # Показываем найденные статьи для выбора
-    keyboard = create_articles_keyboard(articles)
-    
-    message_text = f"🔍 Найдено {len(articles)} статей с ключевым словом '{keyword}':\n\nВыберите статью:"
+    message_text = f"🔍 Найдено {len(articles)} статей с ключевым словом '{keyword}' {source_info}:\n\n"
+    message_text += f"📋 Показано первых {len(limited_articles)} статей:\n\nВыберите статью:"
     
     await message.answer(
         message_text,
@@ -200,28 +210,30 @@ async def process_news_keyword(message: types.Message, state: FSMContext):
 async def show_article_link(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     articles = data['articles']
-    
-    # Получаем индекс выбранной статьи
+
     article_index = int(callback.data.split("_")[1])
     article = articles[article_index]
     
-    # Формируем сообщение со ссылкой
-    response_text = (
-        f"📰 {article['title']}\n\n"
-    )
+    # Формируем сообщение со ссылкой и контентом
+    response_text = f"📰 {article['title']}\n\n"
     
     if article.get('date'):
-        response_text += f"📅 Дата: {article['date']}\n\n"
+        response_text += f"📅 Дата: {article['date']}\n"
     
-    if article.get('description'):
-        desc = article['description']
-        if len(desc) > 200:
-            desc = desc[:200] + "..."
-        response_text += f"📝 Описание: {desc}\n\n"
+    if article.get('category'):
+        response_text += f"🏷️ Категория: {article['category']}\n"
+    
+    response_text += "\n"
+
+    if article.get('preview_content'):
+        response_text += f"📝 {article['preview_content']}\n\n"
+    elif article.get('full_content'):
+        full_content = article['full_content']
+        preview = full_content[:300] + "..." if len(full_content) > 300 else full_content
+        response_text += f"📝 {preview}\n\n"
     
     response_text += f"🔗 Ссылка на статью: {article['url']}"
     
-    # Создаем клавиатуру для возврата
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(
         text="🔙 Назад к списку статей",
@@ -236,7 +248,7 @@ async def show_article_link(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         text=response_text,
         reply_markup=builder.as_markup(),
-        disable_web_page_preview=False  # Разрешаем превью ссылки
+        disable_web_page_preview=False
     )
 
 @news_router.callback_query(Operation.waiting_for_article_selection, F.data == "back_to_articles_list")
@@ -258,3 +270,25 @@ async def back_to_news_search(callback: types.CallbackQuery, state: FSMContext):
         text='🔎 Введите ключевые слова для поиска статей...', 
         reply_markup=get_back_button()
     )
+
+@news_router.callback_query(F.data == "update_news_db")
+async def force_update_news_db(callback: types.CallbackQuery):
+    await callback.message.answer("🔄 Принудительное обновление базы данных новостей...")
+    
+    result = await update_news_database()
+    
+    if result['status'] == 'already_updated':
+        message = "✅ База данных уже актуальна, обновление не требуется"
+    elif result['status'] == 'updated':
+        stats = news_db.get_stats()
+        message = (
+            f"✅ База данных обновлена!\n"
+            f"📊 Обработано статей: {result['processed']}\n"
+            f"🆕 Новых статей: {result['new_articles']}\n"
+            f"📚 Всего в базе: {stats['total_articles']}\n"
+            f"🕐 Последнее обновление: {stats['last_update']}"
+        )
+    else:
+        message = "❌ Ошибка при обновлении базы данных"
+    
+    await callback.message.answer(message)
