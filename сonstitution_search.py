@@ -20,11 +20,17 @@ bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 
 constitution_search_router = Router()
+constitution_rag = None
 
+async def initialize_rag_system():
+    global constitution_rag
+    if constitution_db.is_constitution_loaded():
+        constitution_text = constitution_db.get_constitution_text()
+        constitution_rag = RAGSystem(constitution_text)
+        logger.info("RAGSystem инициализирована")
 
 @constitution_search_router.startup()
 async def on_startup():
-    """Автоматически загружает Конституцию в БД при старте, если она еще не загружена"""
     if not constitution_db.is_constitution_loaded():
         logger.info("Конституция не найдена в БД. Запускаю первоначальную загрузку...")
         result = await parse_and_save_constitution()
@@ -32,6 +38,7 @@ async def on_startup():
             logger.info("Конституция успешно загружена в БД при старте")
         else:
             logger.error(f"Ошибка загрузки Конституции при старте: {result['error']}")
+    await initialize_rag_system()
 
 
 class Operation(StatesGroup):
@@ -105,22 +112,22 @@ async def process_keyword(message: types.Message, state: FSMContext):
         await message.answer("❌ Пожалуйста, введите вопрос или ключевые слова для поиска.")
         return
 
-    if not constitution_db.is_constitution_loaded():
-        await message.answer("📥 Загружаю актуальную версию Конституции...")
+    if constitution_rag is None:
+        if not constitution_db.is_constitution_loaded():
+            await message.answer("📥 Загружаю актуальную версию Конституции...")
 
-        result = await parse_and_save_constitution()
-        if not result['success']:
-            await message.answer(
-                f"❌ Ошибка загрузки Конституции: {result['error']}",
-                reply_markup=get_back_button()
-            )
-            await state.clear()
-            return
+            result = await parse_and_save_constitution()
+            if not result['success']:
+                await message.answer(
+                    f"❌ Ошибка загрузки Конституции: {result['error']}",
+                    reply_markup=get_back_button()
+                )
+                await state.clear()
+                return
+            await initialize_rag_system()
 
     await message.answer("🤔 Анализирую ваш запрос\nИщу информацию в тексте Конституции...")
 
-    constitution_text = constitution_db.get_constitution_text()
-    constitution_rag = RAGSystem(constitution_text)
     message_text = constitution_rag.answer_question(keyword)
 
     if not message_text or len(message_text.strip()) < 10:
@@ -150,6 +157,7 @@ async def init_constitution_db(callback: types.CallbackQuery):
     result = await parse_and_save_constitution()
 
     if result['success']:
+        await initialize_rag_system()
         info = constitution_db.get_constitution_info()
         if info:
             message = (
