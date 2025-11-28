@@ -34,6 +34,7 @@ def get_main_menu():
         [InlineKeyboardButton(text='⤴ Важные статьи', callback_data='top_states')],
         [InlineKeyboardButton(text='📋 Поиск по актам', callback_data='acts_search')],
         [InlineKeyboardButton(text='🎮 Правовая игра', callback_data='pravo_game')],
+        [InlineKeyboardButton(text='🔧 Настройки', callback_data='settings_menu')]
     ])
 
 def get_back_button():
@@ -59,7 +60,12 @@ async def open_menu(message: types.Message):
 
 acts_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='👶 О правах ребёнка', callback_data='act_child_rights')],
-    [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_main')]
+    [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_menu')]
+])
+
+settings_menu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='💡 Включить уведомления', callback_data='notification_on')],
+    [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_menu')]
 ])
 
 @dp.callback_query(F.data == 'acts_search')
@@ -73,6 +79,10 @@ async def acts_search_handler(callback: types.CallbackQuery):
 @dp.callback_query(F.data == 'back_main_menu')
 async def back_main_menu(callback: types.CallbackQuery):
      await callback.message.edit_text(text='🚀 Выберите нужный раздел в меню ниже:', reply_markup=get_main_menu())
+
+@dp.callback_query(F.data == 'settings_menu')
+async def back_main_menu(callback: types.CallbackQuery):
+     await callback.message.edit_text(text='🚀 Выберите нужную функцию:', reply_markup=settings_menu)
 
 async def main():
     print('Бот запущен!')

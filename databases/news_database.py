@@ -314,7 +314,49 @@ async def update_news_database():
         'status': 'updated'
     }
 
+def create_notifications_table():
+    try:
+        conn = sqlite3.connect('news.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_notifications (
+                user_id INTEGER PRIMARY KEY,
+                notifications_enabled BOOLEAN DEFAULT FALSE,
+                last_notified_date TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.commit()
+        conn.close()
+        print("✅ Таблица user_notifications создана или уже существует")
+        return True
+    except Exception as e:
+        print(f"❌ Ошибка создания таблицы user_notifications: {e}")
+        return False
+
 def search_news_in_database(keyword, limit=1100):
     return news_db.search_articles(keyword, limit)
+
+def get_articles_after_date(date_string: str):
+    conn = sqlite3.connect('news.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT title, url, date, category 
+        FROM news 
+        WHERE datetime(parsed_at) > datetime(?)
+        ORDER BY parsed_at DESC
+        LIMIT 10
+    ''', (date_string,))
+    
+    articles = cursor.fetchall()
+    conn.close()
+    
+    return [{
+        'title': article[0],
+        'url': article[1],
+        'date': article[2],
+        'category': article[3]
+    } for article in articles]
 
 news_db = NewsDatabase()

@@ -8,6 +8,13 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 from databases.news_database import news_db, update_news_database, search_news_in_database
+import asyncio
+from datetime import datetime
+import sqlite3
+from databases.news_database import create_notifications_table
+
+print("🔄 Создаем таблицу уведомлений...")
+create_notifications_table()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,6 +31,10 @@ news_router = Router()
 async def on_startup():
     logger.info("Проверяем обновление базы данных новостей...")
     await update_news_database()
+    
+    create_notifications_table()
+
+    asyncio.create_task(check_and_send_notifications())
 
 class Operation(StatesGroup):
     waiting_for_keyword = State()
@@ -491,3 +502,201 @@ async def force_update_news_db(callback: types.CallbackQuery):
         message = "❌ Ошибка при обновлении базы данных"
     
     await callback.message.answer(message)
+
+def enable_user_notifications(user_id: int):
+    try:
+        conn = sqlite3.connect('news.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO user_notifications 
+            (user_id, notifications_enabled, last_notified_date)
+            VALUES (?, TRUE, ?)
+        ''', (user_id, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.OperationalError as e:
+        print(f"Таблица не найдена, создаем... Ошибка: {e}")
+        create_notifications_table()
+        return False
+    except Exception as e:
+        print(f"Другая ошибка: {e}")
+        return False
+    
+def disable_user_notifications(user_id: int):
+    try:
+        conn = sqlite3.connect('news.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO user_notifications 
+            (user_id, notifications_enabled, last_notified_date)
+            VALUES (?, FALSE, ?)
+        ''', (user_id, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.OperationalError:
+        create_notifications_table()
+        return False
+
+def get_users_with_notifications():
+    try:
+        conn = sqlite3.connect('news.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT user_id, last_notified_date 
+            FROM user_notifications 
+            WHERE notifications_enabled = TRUE
+        ''')
+        users = cursor.fetchall()
+        conn.close()
+        return users
+    except sqlite3.OperationalError:
+        create_notifications_table()
+        return []
+    
+def update_last_notified_date(user_id: int):
+    conn = sqlite3.connect('news.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE user_notifications 
+        SET last_notified_date = ?
+        WHERE user_id = ?
+    ''', (datetime.now().isoformat(), user_id))
+    conn.commit()
+    conn.close()
+
+@news_router.callback_query(F.data == 'notification_on')
+async def enable_notifications(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    
+    # Пытаемся включить уведомления
+    success = enable_user_notifications(user_id)
+    
+    if success:
+        await callback.message.edit_text(
+            text="✅ Уведомления включены! Вы будете получать уведомления о новых новостях.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text='🔕 Отключить уведомления', callback_data='notification_off')
+            ]])
+        )
+    else:
+        # Если не удалось, пробуем еще раз (таблица должна быть создана)
+        success_retry = enable_user_notifications(user_id)
+        if success_retry:
+            await callback.message.edit_text(
+                text="✅ Уведомления включены! Вы будете получать уведомления о новых новостях.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text='🔕 Отключить уведомления', callback_data='notification_off')
+                ]])
+            )
+        else:
+            await callback.message.edit_text(
+                text="❌ Не удалось включить уведомления. Попробуйте позже.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text='🔄 Попробовать снова', callback_data='notification_on')
+                ]])
+            )
+
+@news_router.callback_query(F.data == 'notification_off')
+async def disable_notifications(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    disable_user_notifications(user_id)
+    
+    await callback.message.edit_text(
+        text="❌ Уведомления отключены. Вы больше не будете получать уведомления о новых новостях.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text='💡 Включить уведомления', callback_data='notification_on')
+        ]])
+    )
+
+async def check_and_send_notifications():
+    while True:
+        try:
+            update_result = await update_news_database()
+            
+            if update_result['status'] == 'updated' and update_result['new_articles'] > 0:
+                users = get_users_with_notifications()
+                
+                for user_id, last_notified_date in users:
+                    try:
+                        new_articles = get_articles_after_date(last_notified_date)
+                        
+                        if new_articles:
+                            message_text = f"📢 Появились новые новости! ({len(new_articles)} шт.)\n\n"
+                            message_text += "Для просмотра используйте поиск или обновите базу данных."
+                            
+                            await bot.send_message(
+                                chat_id=user_id,
+                                text=message_text,
+                                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                                    InlineKeyboardButton(text='🔍 Поиск новостей', callback_data='state_search'),
+                                    InlineKeyboardButton(text='🔄 Обновить базу', callback_data='update_news_db')
+                                ]])
+                            )
+                            
+                            update_last_notified_date(user_id)
+                            
+                    except Exception as e:
+                        logger.error(f"Ошибка отправки уведомления пользователю {user_id}: {e}")
+                        continue
+            
+            await asyncio.sleep(3600)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в фоновой задаче уведомлений: {e}")
+            await asyncio.sleep(3000)
+
+def get_articles_after_date(date_string: str):
+    conn = sqlite3.connect('news.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT title, url, date, category 
+        FROM news_articles 
+        WHERE datetime(created_at) > datetime(?)
+        ORDER BY created_at DESC
+        LIMIT 10
+    ''', (date_string,))
+    
+    articles = cursor.fetchall()
+    conn.close()
+    
+    return [{
+        'title': article[0],
+        'url': article[1],
+        'date': article[2],
+        'category': article[3]
+    } for article in articles]
+
+@news_router.callback_query(F.data == 'back_main_menu')
+async def back_to_main_menu(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+
+    user_id = callback.from_user.id
+    conn = sqlite3.connect('news.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT notifications_enabled FROM user_notifications WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    
+    notifications_enabled = result[0] if result else False
+    
+    notification_button = InlineKeyboardButton(
+        text='🔕 Отключить уведомления' if notifications_enabled else '💡 Включить уведомления',
+        callback_data='notification_off' if notifications_enabled else 'notification_on'
+    )
+    
+    main_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🔍 Поиск новостей', callback_data='state_search')],
+        [InlineKeyboardButton(text='🔄 Обновить базу новостей', callback_data='update_news_db')],
+        [notification_button],
+        [InlineKeyboardButton(text='ℹ️ Помощь', callback_data='help')]
+    ])
+    
+    status_text = "🔔 Уведомления включены" if notifications_enabled else "🔕 Уведомления отключены"
+    
+    await callback.message.edit_text(
+        text=f"📰 Главное меню\n\n{status_text}",
+        reply_markup=main_menu_keyboard
+    )
