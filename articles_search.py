@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import logging
 import requests
 from bs4 import BeautifulSoup
-from news_database import news_db, update_news_database, search_news_in_database
+from databases.news_database import news_db, update_news_database, search_news_in_database
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,7 +22,6 @@ news_router = Router()
 
 @news_router.startup()
 async def on_startup():
-    """Автоматически обновляет базу данных при старте"""
     logger.info("Проверяем обновление базы данных новостей...")
     await update_news_database()
 
@@ -49,8 +48,7 @@ def parse_news_card(card):
                 article_data['title'] = title_elem.get_text(strip=True)
         else:
             return None
-        
-        # Ссылка на новость
+
         link_elem = card.find('a', href=True)
         if link_elem:
             href = link_elem['href']
@@ -75,8 +73,38 @@ def parse_news_card(card):
         print(f"❌ Ошибка парсинга карточки: {str(e)}")
         return None
 
+async def get_full_article_content(url):
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        content_div = soup.find('div', class_='news-detail-text')
+        if not content_div:
+            content_div = soup.find('div', class_='news-text')
+        if not content_div:
+            content_div = soup.find('article')
+        
+        if content_div:
+            for element in content_div.find_all(['script', 'style', 'aside', 'nav']):
+                element.decompose()
+            
+            text = content_div.get_text(separator='\n', strip=True)
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            return '\n'.join(lines)
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении полного текста статьи: {e}")
+        return None
+
 async def search_news_by_keyword(keyword, max_pages=50, target_count=20):
-    """Ищет новости по ключевому слову"""
     found_articles = []
     logger.info(f"🔍 Начинаем поиск статей по ключевому слову: {keyword}")
     
@@ -116,6 +144,11 @@ async def search_news_by_keyword(keyword, max_pages=50, target_count=20):
                 category = article.get('category', '').lower()
                 
                 if (keyword.lower() in title or keyword.lower() in category):
+                    full_content = await get_full_article_content(article['url'])
+                    if full_content:
+                        article['full_content'] = full_content
+                        article['preview_content'] = full_content[:300] + "..." if len(full_content) > 300 else full_content
+                    
                     found_articles.append(article)
 
                     if len(found_articles) >= 20:
@@ -153,6 +186,33 @@ def create_articles_keyboard(articles):
     builder.adjust(1)
     return builder.as_markup()
 
+def create_article_actions_keyboard(article_index, has_full_content=False):
+    builder = InlineKeyboardBuilder()
+    
+    builder.add(InlineKeyboardButton(
+        text="🔗 Перейти к статье",
+        url=f"article_url_{article_index}"
+    ))
+    
+    if has_full_content:
+        builder.add(InlineKeyboardButton(
+            text="📖 Показать полный текст",
+            callback_data=f"full_text_{article_index}"
+        ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🔙 Назад к списку",
+        callback_data="back_to_articles_list"
+    ))
+    
+    builder.add(InlineKeyboardButton(
+        text="🔄 Новый поиск",
+        callback_data="back_to_news_search"
+    ))
+    
+    builder.adjust(1)
+    return builder.as_markup()
+
 @news_router.callback_query(F.data == 'state_search')
 async def state_search(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
@@ -160,7 +220,6 @@ async def state_search(callback: types.CallbackQuery, state: FSMContext):
         reply_markup=get_back_button()
     )
     await state.set_state(Operation.waiting_for_article_selection)
-
 
 @news_router.message(Operation.waiting_for_article_selection)
 async def process_news_keyword(message: types.Message, state: FSMContext):
@@ -177,7 +236,6 @@ async def process_news_keyword(message: types.Message, state: FSMContext):
     if articles:
         source_info = "📚 (из базы данных)"
     else:
-        # Если в базе нет, ищем на сайте
         await message.answer("🔄 Статьи не найдены в базе. Ищу на сайте...")
         articles = await search_news_by_keyword(keyword, max_pages=10, target_count=15)
         source_info = "🌐 (с сайта)"
@@ -207,14 +265,13 @@ async def process_news_keyword(message: types.Message, state: FSMContext):
     )
 
 @news_router.callback_query(Operation.waiting_for_article_selection, F.data.startswith("article_"))
-async def show_article_link(callback: types.CallbackQuery, state: FSMContext):
+async def show_article_options(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     articles = data['articles']
 
     article_index = int(callback.data.split("_")[1])
     article = articles[article_index]
-    
-    # Формируем сообщение со ссылкой и контентом
+
     response_text = f"📰 {article['title']}\n\n"
     
     if article.get('date'):
@@ -232,24 +289,166 @@ async def show_article_link(callback: types.CallbackQuery, state: FSMContext):
         preview = full_content[:300] + "..." if len(full_content) > 300 else full_content
         response_text += f"📝 {preview}\n\n"
     
-    response_text += f"🔗 Ссылка на статью: {article['url']}"
+    response_text += "Выберите действие:"
+
+    has_full_content = bool(article.get('full_content'))
+    keyboard = create_article_actions_keyboard(article_index, has_full_content)
+ 
+    keyboard_json = keyboard.model_dump()
+    for button_row in keyboard_json['inline_keyboard']:
+        for button in button_row:
+            if button.get('text') == "🔗 Перейти к статье":
+                button['url'] = article['url']
     
-    builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(
-        text="🔙 Назад к списку статей",
-        callback_data="back_to_articles_list"
-    ))
-    builder.add(InlineKeyboardButton(
-        text="🔄 Новый поиск",
-        callback_data="back_to_news_search"
-    ))
-    builder.adjust(1)
+    final_keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_json['inline_keyboard'])
     
     await callback.message.edit_text(
         text=response_text,
-        reply_markup=builder.as_markup(),
+        reply_markup=final_keyboard,
         disable_web_page_preview=False
     )
+
+def split_text_into_parts(text, max_length=4000):
+    """Разбивает текст на части с учетом границ предложений"""
+    if len(text) <= max_length:
+        return [text]
+    
+    parts = []
+    current_part = ""
+    
+    # Разбиваем по предложениям
+    sentences = text.split('. ')
+    
+    for sentence in sentences:
+        # Если текущая часть + новое предложение превышает лимит
+        if len(current_part) + len(sentence) + 2 > max_length:
+            if current_part:
+                parts.append(current_part.strip())
+                current_part = ""
+            
+            # Если одно предложение слишком длинное, разбиваем его
+            if len(sentence) > max_length:
+                words = sentence.split(' ')
+                for word in words:
+                    if len(current_part) + len(word) + 1 > max_length:
+                        if current_part:
+                            parts.append(current_part.strip())
+                            current_part = ""
+                    current_part += word + " "
+            else:
+                current_part = sentence + ". "
+        else:
+            current_part += sentence + ". "
+    
+    if current_part.strip():
+        parts.append(current_part.strip())
+    
+    return parts
+
+@news_router.callback_query(Operation.waiting_for_article_selection, F.data.startswith("full_text_"))
+async def show_full_article_text(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    articles = data['articles']
+
+    article_index = int(callback.data.split("_")[2])
+    article = articles[article_index]
+    
+    if not article.get('full_content'):
+        await callback.answer("❌ Полный текст статьи недоступен", show_alert=True)
+        return
+    
+    full_content = article['full_content']
+    
+    # Разбиваем текст на части если он слишком длинный
+    if len(full_content) > 4000:
+        parts = []
+        current_part = ""
+        
+        for paragraph in full_content.split('\n'):
+            if len(current_part) + len(paragraph) + 1 < 4000:
+                current_part += paragraph + '\n'
+            else:
+                parts.append(current_part)
+                current_part = paragraph + '\n'
+        
+        if current_part:
+            parts.append(current_part)
+
+        await callback.message.edit_text(
+            text=f"📖 {article['title']}\n\n{parts[0]}",
+            reply_markup=create_full_text_navigation(article_index, 0, len(parts))
+        )
+    else:
+        await callback.message.edit_text(
+            text=f"📖 {article['title']}\n\n{full_content}",
+            reply_markup=create_full_text_back_button(article_index)
+        )
+
+def create_full_text_navigation(article_index, current_part, total_parts):
+    builder = InlineKeyboardBuilder()
+    
+    navigation_buttons = []
+    
+    if current_part > 0:
+        navigation_buttons.append(InlineKeyboardButton(
+            text="⬅️ Предыдущая",
+            callback_data=f"text_part_{article_index}_{current_part-1}"
+        ))
+    
+    if current_part < total_parts - 1:
+        navigation_buttons.append(InlineKeyboardButton(
+            text="Следующая ➡️",
+            callback_data=f"text_part_{article_index}_{current_part+1}"
+        ))
+    
+    if navigation_buttons:
+        builder.row(*navigation_buttons)
+    
+    builder.row(InlineKeyboardButton(
+        text="🔙 Назад к статье",
+        callback_data=f"article_{article_index}"
+    ))
+    
+    return builder.as_markup()
+
+def create_full_text_back_button(article_index):
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(
+        text="🔙 Назад к статье",
+        callback_data=f"article_{article_index}"
+    ))
+    return builder.as_markup()
+
+@news_router.callback_query(Operation.waiting_for_article_selection, F.data.startswith("text_part_"))
+async def navigate_full_text(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    articles = data['articles']
+
+    parts = callback.data.split("_")
+    article_index = int(parts[2])
+    part_index = int(parts[3])
+    
+    article = articles[article_index]
+    full_content = article['full_content']
+    
+    content_parts = []
+    current_part = ""
+    
+    for paragraph in full_content.split('\n'):
+        if len(current_part) + len(paragraph) + 1 < 4000:
+            current_part += paragraph + '\n'
+        else:
+            content_parts.append(current_part)
+            current_part = paragraph + '\n'
+    
+    if current_part:
+        content_parts.append(current_part)
+    
+    if part_index < len(content_parts):
+        await callback.message.edit_text(
+            text=f"📖 {article['title']} (часть {part_index + 1}/{len(content_parts)})\n\n{content_parts[part_index]}",
+            reply_markup=create_full_text_navigation(article_index, part_index, len(content_parts))
+        )
 
 @news_router.callback_query(Operation.waiting_for_article_selection, F.data == "back_to_articles_list")
 async def back_to_articles_list(callback: types.CallbackQuery, state: FSMContext):

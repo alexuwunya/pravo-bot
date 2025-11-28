@@ -9,7 +9,7 @@ class RAGSystem:
         self.client = QdrantClient(path="\\qdrant_client")
         self.api_key = "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"
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.llm_model = "qwen/qwen3-30b-a3b:free"
+        self.llm_model = "google/gemma-3-27b-it:free"
         self.codex = paragraph
         self.create_embeddings_if_not_exists()
 

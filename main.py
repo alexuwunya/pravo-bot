@@ -12,7 +12,7 @@ from сonstitution_search import constitution_search_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = '8570949555:AAEd_1zDKV3F_7gNG5wsl_gnbYa9-dqRyI8'
+BOT_TOKEN = '8565646689:AAFFpRkZECKYYIr1laEW6a301algCZ3Qb1Q'
 
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
@@ -32,6 +32,7 @@ def get_main_menu():
         [InlineKeyboardButton(text='💡 Поиск в конституции', callback_data='konstitution_search')],
         [InlineKeyboardButton(text='🔎 Поиск статей', callback_data='state_search')],
         [InlineKeyboardButton(text='⤴ Важные статьи', callback_data='top_states')],
+        [InlineKeyboardButton(text='📋 Поиск по актам', callback_data='acts_search')],
         [InlineKeyboardButton(text='🎮 Правовая игра', callback_data='pravo_game')],
     ])
 
@@ -55,6 +56,19 @@ async def cmd_start(message: types.Message):
 @dp.message(Command('menu'))
 async def open_menu(message: types.Message):
     await message.answer('📋 Главное меню. Выберите раздел:', reply_markup=get_main_menu())
+
+acts_menu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='👶 О правах ребёнка', callback_data='act_child_rights')],
+    [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_main')]
+])
+
+@dp.callback_query(F.data == 'acts_search')
+async def acts_search_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "Выберите категорию актов:",
+        reply_markup=acts_menu
+    )
+    await callback.answer()
 
 @dp.callback_query(F.data == 'back_main_menu')
 async def back_main_menu(callback: types.CallbackQuery):
