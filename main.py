@@ -8,11 +8,12 @@ import asyncio
 from articles_search import news_router
 from important_articles import important_news_router
 from сonstitution_search import constitution_search_router
+from child_rights_search import child_rights_search_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = '8565646689:AAFFpRkZECKYYIr1laEW6a301algCZ3Qb1Q'
+BOT_TOKEN = '8570949555:AAEd_1zDKV3F_7gNG5wsl_gnbYa9-dqRyI8'
 
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
@@ -21,6 +22,7 @@ callback_router = Router()
 dp.include_router(news_router)
 dp.include_router(important_news_router)
 dp.include_router(constitution_search_router)
+dp.include_router(child_rights_search_router)
 
 class Operation(StatesGroup):
     waiting_for_keyword = State()
