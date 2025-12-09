@@ -31,7 +31,6 @@ async def initialize_child_rights_rag_system():
 
         logger.info(f"📖 Текст закона о правах ребенка получен, длина: {len(law_text)} символов")
 
-        # Улучшенная проверка содержимого
         required_keywords = ["правах ребенка", "ребенок", "несовершеннолетн"]
         forbidden_keywords = ["Конституция", "Республика Беларусь"]
 
@@ -103,7 +102,7 @@ async def process_child_rights_keyword(message: types.Message, state: FSMContext
     await message.answer("🤔 Анализирую ваш запрос\nИщу информацию в тексте закона...")
 
     try:
-        message_text = child_rights_rag.answer_question(keyword)
+        message_text = await child_rights_rag.answer_question(keyword)
     except Exception as e:
         logger.error(f"Ошибка при поиске в законе о правах ребенка: {e}")
         message_text = "❌ Произошла ошибка при поиске. Попробуйте позже."
