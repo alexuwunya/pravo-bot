@@ -20,10 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-if not BOT_TOKEN:
-    logger.critical("BOT_TOKEN не найден в переменных окружения!")
-    exit(1)
+BOT_TOKEN = '8565646689:AAFFpRkZECKYYIr1laEW6a301algCZ3Qb1Q'
 
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
