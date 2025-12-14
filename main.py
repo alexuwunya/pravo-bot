@@ -8,9 +8,9 @@ from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from articles_search import news_router
-from important_articles import important_news_router
-from сonstitution_search import constitution_search_router
-from child_rights_search import child_rights_search_router
+from functions.important_articles import important_news_router
+from functions.сonstitution_search import constitution_search_router
+from functions.child_rights_search import child_rights_search_router
 
 load_dotenv()
 
@@ -37,7 +37,7 @@ def get_main_menu():
         [InlineKeyboardButton(text='🔎 Поиск статей', callback_data='state_search')],
         [InlineKeyboardButton(text='⤴ Важные статьи', callback_data='top_states')],
         [InlineKeyboardButton(text='📋 Поиск по актам', callback_data='acts_search')],
-        [InlineKeyboardButton(text='🎮 Правовая игра', callback_data='pravo_game')],
+        [InlineKeyboardButton(text='🎮 Правовая игра', callback_data='pravo_game', url='https://alexuwunya.github.io/pravo-bot/')],
         [InlineKeyboardButton(text='🔧 Настройки', callback_data='settings_menu')]
     ])
 

@@ -35,7 +35,7 @@ class RAGSystem:
 
         self.client = qdrant_manager.get_client()
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.llm_model = "google/gemma-3-27b-it:free"  # Обновил модель на более стабильную free версию, если доступна
+        self.llm_model = "mistralai/devstral-2512:free"  # Обновил модель на более стабильную free версию, если доступна
         self.codex = paragraph
         self.document_name = document_name
         self.collection_name = collection_name
