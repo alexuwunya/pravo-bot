@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Учим программировать - Главная</title>
+    <title>Изучаем право - Главная</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -263,18 +263,12 @@
 </head>
 <body>
     <div class="container">
-        <div class="language-selector">
-            <button class="lang-btn">
-                <i class="fas fa-globe"></i> Русский <i class="fas fa-chevron-down"></i>
-            </button>
-        </div>
-        
         <div class="header">
             <div class="logo pulse">
                 <i class="fas fa-code"></i>
             </div>
-            <h1>Учим программировать</h1>
-            <p>Интерактивная игра для изучения основ программирования через практические задания</p>
+            <h1>Изучаем право</h1>
+            <p>Интерактивная игра для изучения правовых норм через практические задания</p>
         </div>
         
         <div class="user-stats">
@@ -303,53 +297,53 @@
                 </div>
                 <div class="btn-content">
                     <span class="btn-title">Играть</span>
-                    <span class="btn-description">Начать новую игру. Пройди все уровни и стань мастером программирования!</span>
+                    <span class="btn-description">Начать новую игру. Пройди все уровни и стань знатоком права!</span>
                 </div>
                 <div class="btn-arrow">
                     <i class="fas fa-chevron-right"></i>
                 </div>
             </a>
             
-            <a href="themes.html" class="menu-btn">
+            <a href=".html" class="menu-btn">
                 <div class="btn-icon" style="background: linear-gradient(135deg, #2ecc71, #27ae60);">
                     <i class="fas fa-palette"></i>
                 </div>
                 <div class="btn-content">
                     <span class="btn-title">Темы</span>
-                    <span class="btn-description">Изучи различные темы: алгоритмы, переменные, циклы, функции и многое другое</span>
+                    <span class="btn-description">Изучи различные темы: правонарушения, права детей и другие</span>
                 </div>
                 <div class="btn-arrow">
                     <i class="fas fa-chevron-right"></i>
                 </div>
             </a>
             
-            <a href="modes.html" class="menu-btn">
+            <a href=".html" class="menu-btn">
                 <div class="btn-icon" style="background: linear-gradient(135deg, #e74c3c, #c0392b);">
                     <i class="fas fa-gamepad"></i>
                 </div>
                 <div class="btn-content">
                     <span class="btn-title">Режимы игры</span>
-                    <span class="btn-description">Классический, на время, бесконечный, соревновательный и другие режимы</span>
+                    <span class="btn-description">Классический, на время, бесконечный и многие другие</span>
                 </div>
                 <div class="btn-arrow">
                     <i class="fas fa-chevron-right"></i>
                 </div>
             </a>
             
-            <a href="about.html" class="menu-btn">
+            <a href=".html" class="menu-btn">
                 <div class="btn-icon" style="background: linear-gradient(135deg, #9b59b6, #8e44ad);">
                     <i class="fas fa-info-circle"></i>
                 </div>
                 <div class="btn-content">
                     <span class="btn-title">Об игре</span>
-                    <span class="btn-description">Узнай больше об игре, разработчиках и как эффективно обучаться программированию</span>
+                    <span class="btn-description">Узнай больше об игре, разработчиках и как правильно изучать право</span>
                 </div>
                 <div class="btn-arrow">
                     <i class="fas fa-chevron-right"></i>
                 </div>
             </a>
             
-            <a href="settings.html" class="menu-btn">
+            <a href=".html" class="menu-btn">
                 <div class="btn-icon" style="background: linear-gradient(135deg, #34495e, #2c3e50);">
                     <i class="fas fa-cog"></i>
                 </div>
@@ -362,13 +356,13 @@
                 </div>
             </a>
             
-            <a href="achievements.html" class="menu-btn">
+            <a href=".html" class="menu-btn">
                 <div class="btn-icon" style="background: linear-gradient(135deg, #f39c12, #e67e22);">
                     <i class="fas fa-trophy"></i>
                 </div>
                 <div class="btn-content">
                     <span class="btn-title">Достижения</span>
-                    <span class="btn-description">Собирай достижения, повышай уровень и становись лучшим программистом</span>
+                    <span class="btn-description">Собирай достижения, повышай уровень</span>
                 </div>
                 <div class="btn-arrow">
                     <i class="fas fa-chevron-right"></i>
@@ -377,8 +371,8 @@
         </div>
         
         <div class="footer">
-            <p>© 2024 Учим программировать. Все права защищены.</p>
-            <p>Игра предназначена для обучения основам программирования детей и начинающих</p>
+            <p>© 2025 Детский правовой бот. Все права защищены.</p>
+            <p>Игра предназначена для изучения правовых норм детьми</p>
         </div>
     </div>
 
@@ -394,34 +388,14 @@
             document.getElementById('bestScore').textContent = bestScore;
             document.getElementById('level').textContent = level;
             document.getElementById('streak').textContent = streak;
-            
-            // Анимация при наведении на кнопки
+
             const menuBtns = document.querySelectorAll('.menu-btn');
             menuBtns.forEach(btn => {
                 btn.addEventListener('click', function(e) {
-                    // Добавляем анимацию нажатия
                     this.style.transform = 'scale(0.98)';
                     setTimeout(() => {
                         this.style.transform = '';
                     }, 200);
-                });
-            });
-            
-            // Обработка выбора языка
-            const langBtn = document.querySelector('.lang-btn');
-            langBtn.addEventListener('click', function() {
-                alert('Выбор языка будет доступен в следующем обновлении!');
-            });
-            
-            // Добавляем звук клика
-            const clickSound = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ');
-            
-            menuBtns.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    // Воспроизводим тихий звук клика
-                    clickSound.volume = 0.3;
-                    clickSound.currentTime = 0;
-                    clickSound.play().catch(e => console.log("Автовоспроизведение звука заблокировано"));
                 });
             });
             
