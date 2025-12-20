@@ -2,14 +2,13 @@ import os
 import re
 import logging
 import json
-import aiohttp
 import asyncio
 from sentence_transformers import SentenceTransformer
 from qdrant_client.models import VectorParams, Distance, PointStruct
 from qdrant_manager import qdrant_manager
+from groq import AsyncGroq
 
 logger = logging.getLogger(__name__)
-
 
 class ModelManager:
     _model = None
@@ -29,20 +28,23 @@ class ModelManager:
 
 class RAGSystem:
     def __init__(self, paragraph, collection_name="constitution_articles", document_name='Конституция'):
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
+        self.api_key = os.getenv("GROQ_API_KEY")
         if not self.api_key:
-            logger.warning("⚠️ OPENROUTER_API_KEY не найден! RAG не будет работать корректно.")
+            logger.warning("⚠️ GROQ_API_KEY не найден! RAG не будет работать корректно.")
 
         self.client = qdrant_manager.get_client()
-        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
-        self.llm_model = "mistralai/devstral-2512:free"  # Обновил модель на более стабильную free версию, если доступна
+
+        self.groq_client = AsyncGroq(api_key=self.api_key)
+
+        self.llm_model = "llama-3.3-70b-versatile"
+
         self.codex = paragraph
         self.document_name = document_name
         self.collection_name = collection_name
 
         self.model = ModelManager.get_model()
 
-        logger.info(f"🔍 Init RAG для: {self.document_name}, Коллекция: {self.collection_name}")
+        logger.info(f"🔍 Init RAG (Groq) для: {self.document_name}, Коллекция: {self.collection_name}")
 
         self._validate_input_text()
         self.create_embeddings_if_not_exists()
@@ -159,31 +161,20 @@ class RAGSystem:
             system_prompt = f"Ты юрист-консультант по документу: {self.document_name}. Отвечай кратко, по сути, придерживайся длины ответа в 100-200 символов, не исользуй специальные символы Markdown разметки ссылаяйся на статьи. Представь ответ, готовый к отображению в telegram"
             user_content = f"Контекст:\n{context}\n\nВопрос: {question}"
 
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "model": self.llm_model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_content}
-                    ]
-                }
-                headers = {
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://telegram.bot",  # Требование OpenRouter
-                }
+            # ИЗМЕНЕНИЕ: Запрос через Groq SDK вместо aiohttp/OpenRouter
+            chat_completion = await self.groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                model=self.llm_model,
+                temperature=0.3,  # Немного понизил температуру для точности юридических ответов
+            )
 
-                async with session.post(self.api_url, json=payload, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return data['choices'][0]['message']['content']
-                    else:
-                        err = await response.text()
-                        logger.error(f"LLM Error {response.status}: {err}")
-                        return "Ошибка при обращении к нейросети."
+            return chat_completion.choices[0].message.content
 
         except Exception as e:
-            logger.error(f"Ошибка RAG: {e}")
+            logger.error(f"Ошибка RAG (Groq): {e}")
             return "Произошла внутренняя ошибка системы."
 
 
