@@ -9,19 +9,115 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="menu" >
-        <a href="game.html" class="menu-btn" style="color: black; background: rgb(204 217 254);">
-            <div class="btn-icon" style="background: linear-gradient(135deg, #4a6ee0, #3a5ed0);">
-                <i class="fas fa-flag-checkered"></i>
+    <div class="game-container" id="gameContainer">
+    <div class="header">
+        <h1 style="color: #4b50d1;"><i class="fas fa-book"></i> Выберите тему игры</h1>
+    </div>
+    <div class="themes-menu">
+        <a href="game.html?theme=traffic" class="theme-btn">
+            <div class="theme-icon" style="background: linear-gradient(135deg, #4a6ee0, #3a5ed0);">
+                <i class="fas fa-bicycle"></i>
             </div>
-            <div class="btn-content">
-                <span class="btn-title">Классика</span>
-                <span class="mode-description">Обычный режим без ограничений</span>
+            <div class="theme-content">
+                <span class="theme-title">Правила дорожного движения</span>
+                <span class="theme-description">Велосипеды, самокаты, переходы</span>
             </div>
-            <div class="btn-arrow">
+            <div class="theme-arrow">
                 <i class="fas fa-chevron-right"></i>
             </div>
-        </a>    
+        </a>
+
+        <a href="game.html?theme=rights" class="theme-btn">
+            <div class="theme-icon" style="background: linear-gradient(135deg, #2ecc71, #27ae60);">
+                <i class="fas fa-balance-scale"></i>
+            </div>
+            <div class="theme-content">
+                <span class="theme-title">Права ребенка</span>
+                <span class="theme-description">Конвенция, Закон РБ о правах ребенка</span>
+            </div>
+            <div class="theme-arrow">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </a>
+
+        <a href="game.html?theme=family" class="theme-btn">
+            <div class="theme-icon" style="background: linear-gradient(135deg, #9b59b6, #8e44ad);">
+                <i class="fas fa-home"></i>
+            </div>
+            <div class="theme-content">
+                <span class="theme-title">Семья и обязанности</span>
+                <span class="theme-description">Обязанности родителей/детей</span>
+            </div>
+            <div class="theme-arrow">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </a>
+
+        <a href="game.html?theme=admin" class="theme-btn">
+            <div class="theme-icon" style="background: linear-gradient(135deg, #e74c3c, #c0392b);">
+                <i class="fas fa-gavel"></i>
+            </div>
+            <div class="theme-content">
+                <span class="theme-title">Административная ответственность</span>
+                <span class="theme-description">Мелкое хулиганство, шум, мусор</span>
+            </div>
+            <div class="theme-arrow">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </a>
+
+        <a href="game.html?theme=finance" class="theme-btn">
+            <div class="theme-icon" style="background: linear-gradient(135deg, #f39c12, #e67e22);">
+                <i class="fas fa-coins"></i>
+            </div>
+            <div class="theme-content">
+                <span class="theme-title">Финансовая грамотность</span>
+                <span class="theme-description">Карманные деньги, покупки</span>
+            </div>
+            <div class="theme-arrow">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </a>
+
+        <a href="game.html?theme=internet" class="theme-btn">
+            <div class="theme-icon" style="background: linear-gradient(135deg, #3498db, #2980b9);">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="theme-content">
+                <span class="theme-title">Безопасность в интернете</span>
+                <span class="theme-description">Кибербуллинг и защита данных</span>
+            </div>
+            <div class="theme-arrow">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </a>
+
+        <a href="game.html?theme=symbols" class="theme-btn">
+            <div class="theme-icon" style="background: linear-gradient(135deg, #e04ad6, #943ad0);">
+                <i class="fas fa-flag"></i>
+            </div>
+            <div class="theme-content">
+                <span class="theme-title">Государственные символы</span>
+                <span class="theme-description">Республики Беларусь</span>
+            </div>
+            <div class="theme-arrow">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </a>
+
+        <a href="game.html?theme=school" class="theme-btn">
+            <div class="theme-icon" style="background: linear-gradient(135deg, #1abc9c, #16a085);">
+                <i class="fas fa-graduation-cap"></i>
+            </div>
+            <div class="theme-content">
+                <span class="theme-title">Школа и поведение</span>
+                <span class="theme-description">Правила поведения на уроках</span>
+            </div>
+            <div class="theme-arrow">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </a>
+    </div>
     <div class="footer">
         <p>© 2025 Детский правовой бот. Все права защищены.</p>
         <p>Игра предназначена для изучения правовых норм детьми</p>
