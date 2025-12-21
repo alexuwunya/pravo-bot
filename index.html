@@ -119,35 +119,6 @@
                 });
             });
             
-            // Плавное появление элементов
-            const animateOnScroll = () => {
-                const elements = document.querySelectorAll('.menu-btn, .stat-item');
-                elements.forEach((element, index) => {
-                    const elementTop = element.getBoundingClientRect().top;
-                    const elementVisible = 150;
-                    
-                    if (elementTop < window.innerHeight - elementVisible) {
-                        element.style.opacity = "1";
-                        element.style.transform = "translateY(0)";
-                    }
-                });
-            };
-            
-            // Изначально скрываем элементы
-            const menuItems = document.querySelectorAll('.menu-btn, .stat-item');
-            menuItems.forEach(item => {
-                item.style.opacity = "0";
-                item.style.transform = "translateY(20px)";
-                item.style.transition = "opacity 0.6s ease, transform 0.6s ease";
-            });
-            
-            window.addEventListener("scroll", animateOnScroll);
-            // Первый запуск
-            animateOnScroll();
-            
-            // Запускаем анимацию через небольшое время для гарантии отображения
-            setTimeout(animateOnScroll, 100);
-            
             // Добавляем интерактивность для статистики
             const statItems = document.querySelectorAll('.stat-item');
             statItems.forEach(item => {
@@ -165,17 +136,6 @@
                 });
             });
             
-            // Имитация загрузки данных
-            setTimeout(() => {
-                // Обновляем статистику, если есть сохранённые данные
-                const savedData = JSON.parse(localStorage.getItem('gameData') || '{}');
-                if (savedData.totalGames) {
-                    document.getElementById('totalGames').textContent = savedData.totalGames;
-                }
-                if (savedData.bestScore) {
-                    document.getElementById('bestScore').textContent = savedData.bestScore;
-                }
-            }, 500);
         });
     </script>
 </body>

@@ -303,7 +303,6 @@ body {
     opacity: 1;
 }
 
-/* Адаптивность для тем */
 @media (max-width: 768px) {
     .themes-menu {
         grid-template-columns: 1fr;
