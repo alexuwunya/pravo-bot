@@ -270,67 +270,123 @@
             }
 
             // Рендер: Последовательность (Sequence)
-           function renderSequence(q) {
-                // Создаем массив объектов с исходными индексами
+            function renderSequence(q) {
                 userSelection = q.steps.map((step, index) => ({ text: step, originalIndex: index }));
-                // Перемешиваем для отображения
                 userSelection.sort(() => 0.5 - Math.random());
 
                 const container = document.createElement('div');
                 container.className = 'sequence-container';
 
-                function updateSequenceUI(moveDirection = null, movedIndex = null) {
-                    container.innerHTML = '';
-                    
-                    // Добавляем анимационный класс для контейнера
-                    if (moveDirection) {
-                        container.classList.add('shuffle-animation');
-                        setTimeout(() => {
-                            container.classList.remove('shuffle-animation');
-                        }, 300);
+                // Функция для создания элемента последовательности
+                function createSequenceItem(item, idx, isNew = false) {
+                    const div = document.createElement('div');
+                    div.className = 'sequence-item';
+                    if (isNew) {
+                        div.classList.add('new-item');
                     }
                     
-                    userSelection.forEach((item, idx) => {
-                        const div = document.createElement('div');
-                        div.className = 'sequence-item';
+                    div.innerHTML = `
+                        <span style="font-weight:bold; margin-right:10px; color:#4a6ee0;">${idx + 1}.</span>
+                        <span>${item.text}</span>
+                        <div class="seq-buttons">
+                            <button class="seq-btn up" ${idx === 0 ? 'disabled' : ''}><i class="fas fa-arrow-up"></i></button>
+                            <button class="seq-btn down" ${idx === userSelection.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-down"></i></button>
+                        </div>
+                    `;
+
+                    const upBtn = div.querySelector('.up');
+                    const downBtn = div.querySelector('.down');
+
+                    if (upBtn) upBtn.onclick = () => {
+                        if (isAnswerChecked) return;
+                        moveItem(idx, 'up');
+                    };
+
+                    if (downBtn) downBtn.onclick = () => {
+                        if (isAnswerChecked) return;
+                        moveItem(idx, 'down');
+                    };
+
+                    return div;
+                }
+
+                // Функция для перемещения элемента с анимацией
+                function moveItem(index, direction) {
+                    if ((direction === 'up' && index === 0) || (direction === 'down' && index === userSelection.length - 1)) {
+                        return;
+                    }
+
+                    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+                    
+                    // Анимация перемещения
+                    const items = container.querySelectorAll('.sequence-item');
+                    const movingItem = items[index];
+                    const targetItem = items[targetIndex];
+                    
+                    // Добавляем классы для анимации
+                    movingItem.classList.add('moving');
+                    targetItem.classList.add('target-moving');
+                    
+                    // Меняем элементы в массиве
+                    [userSelection[index], userSelection[targetIndex]] = [userSelection[targetIndex], userSelection[index]];
+                    
+                    // Обновляем номера и текст
+                    setTimeout(() => {
+                        // Обновляем номер у перемещаемого элемента
+                        const movingNumber = movingItem.querySelector('span:first-child');
+                        movingNumber.textContent = `${targetIndex + 1}.`;
                         
-                        // Добавляем анимационный класс для перемещаемого элемента
-                        if (moveDirection && idx === movedIndex) {
-                            div.classList.add('move-animation');
-                            setTimeout(() => {
-                                div.classList.remove('move-animation');
-                            }, 300);
+                        // Обновляем номер у целевого элемента
+                        const targetNumber = targetItem.querySelector('span:first-child');
+                        targetNumber.textContent = `${index + 1}.`;
+                        
+                        // Меняем позиции элементов в DOM
+                        if (direction === 'up') {
+                            container.insertBefore(movingItem, targetItem);
+                        } else {
+                            container.insertBefore(targetItem, movingItem);
                         }
                         
-                        div.innerHTML = `
-                            <span style="font-weight:bold; margin-right:10px; color:#4a6ee0;">${idx + 1}.</span>
-                            <span>${item.text}</span>
-                            <div class="seq-buttons">
-                                <button class="seq-btn up" ${idx === 0 ? 'disabled' : ''}><i class="fas fa-arrow-up"></i></button>
-                                <button class="seq-btn down" ${idx === userSelection.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-down"></i></button>
-                            </div>
-                        `;
+                        // Убираем классы анимации
+                        movingItem.classList.remove('moving');
+                        targetItem.classList.remove('target-moving');
+                        
+                        // Обновляем состояние кнопок
+                        updateButtons();
+                    }, 300);
+                }
 
-                        // Обработчики кнопок
-                        const upBtn = div.querySelector('.up');
-                        const downBtn = div.querySelector('.down');
-
-                        if (upBtn) upBtn.onclick = () => {
-                            if (isAnswerChecked) return;
-                            [userSelection[idx], userSelection[idx - 1]] = [userSelection[idx - 1], userSelection[idx]];
-                            updateSequenceUI('up', idx - 1);
-                        };
-
-                        if (downBtn) downBtn.onclick = () => {
-                            if (isAnswerChecked) return;
-                            [userSelection[idx], userSelection[idx + 1]] = [userSelection[idx + 1], userSelection[idx]];
-                            updateSequenceUI('down', idx + 1);
-                        };
-
-                        container.appendChild(div);
+                // Функция для обновления состояния кнопок
+                function updateButtons() {
+                    const items = container.querySelectorAll('.sequence-item');
+                    items.forEach((item, idx) => {
+                        const upBtn = item.querySelector('.up');
+                        const downBtn = item.querySelector('.down');
+                        
+                        if (upBtn) {
+                            upBtn.disabled = idx === 0;
+                            upBtn.style.opacity = idx === 0 ? '0.5' : '1';
+                        }
+                        
+                        if (downBtn) {
+                            downBtn.disabled = idx === userSelection.length - 1;
+                            downBtn.style.opacity = idx === userSelection.length - 1 ? '0.5' : '1';
+                        }
                     });
                 }
-                updateSequenceUI();
+
+                // Создаем начальные элементы
+                userSelection.forEach((item, idx) => {
+                    const div = createSequenceItem(item, idx, true);
+                    container.appendChild(div);
+                });
+                
+                // Убираем класс new-item после небольшой задержки
+                setTimeout(() => {
+                    const newItems = container.querySelectorAll('.new-item');
+                    newItems.forEach(item => item.classList.remove('new-item'));
+                }, 100);
+
                 answerContainer.appendChild(container);
             }
 
