@@ -280,11 +280,29 @@
                 const container = document.createElement('div');
                 container.className = 'sequence-container';
 
-                function updateSequenceUI() {
+                function updateSequenceUI(moveDirection = null, movedIndex = null) {
                     container.innerHTML = '';
+                    
+                    // Добавляем анимационный класс для контейнера
+                    if (moveDirection) {
+                        container.classList.add('shuffle-animation');
+                        setTimeout(() => {
+                            container.classList.remove('shuffle-animation');
+                        }, 300);
+                    }
+                    
                     userSelection.forEach((item, idx) => {
                         const div = document.createElement('div');
                         div.className = 'sequence-item';
+                        
+                        // Добавляем анимационный класс для перемещаемого элемента
+                        if (moveDirection && idx === movedIndex) {
+                            div.classList.add('move-animation');
+                            setTimeout(() => {
+                                div.classList.remove('move-animation');
+                            }, 300);
+                        }
+                        
                         div.innerHTML = `
                             <span style="font-weight:bold; margin-right:10px; color:#4a6ee0;">${idx + 1}.</span>
                             <span>${item.text}</span>
@@ -301,13 +319,13 @@
                         if (upBtn) upBtn.onclick = () => {
                             if (isAnswerChecked) return;
                             [userSelection[idx], userSelection[idx - 1]] = [userSelection[idx - 1], userSelection[idx]];
-                            updateSequenceUI();
+                            updateSequenceUI('up', idx - 1);
                         };
 
                         if (downBtn) downBtn.onclick = () => {
                             if (isAnswerChecked) return;
                             [userSelection[idx], userSelection[idx + 1]] = [userSelection[idx + 1], userSelection[idx]];
-                            updateSequenceUI();
+                            updateSequenceUI('down', idx + 1);
                         };
 
                         container.appendChild(div);
@@ -516,10 +534,10 @@
                         <p style="font-size:1.2rem; margin-bottom:5px;">Ваш счёт: <b>${currentScore}</b></p>
                         <p style="color:#666; margin-bottom:25px;">Правильных ответов: ${correctAnswersCount} из ${gameQuestions.length}</p>
 
-                        <button class="menu-btn" onclick="location.reload()" style="justify-content:center; margin-top:10px; background:linear-gradient(135deg, #2ecc71, #27ae60);">
+                        <button class="menu-btn" onclick="location.reload()" style="justify-content:center; margin-top:10px; width:100%; background:linear-gradient(135deg, #2ecc71, #27ae60);">
                             <i class="fas fa-redo"></i> Сыграть снова
                         </button>
-                        <a href="index.html" class="menu-btn" style="justify-content:center; margin-top:10px; background:linear-gradient(135deg, #4a6ee0, #3a5ed0); text-decoration:none;">
+                        <a href="../index.html" class="menu-btn" style="justify-content:center; margin-top:10px; background:linear-gradient(135deg, #4a6ee0, #3a5ed0); text-decoration:none;">
                             <i class="fas fa-home"></i> В меню
                         </a>
                     </div>
