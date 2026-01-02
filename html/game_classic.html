@@ -312,6 +312,52 @@
                 }
 
                 // Функция для перемещения элемента с анимацией
+                            function renderSequence(q) {
+                userSelection = q.steps.map((step, index) => ({ text: step, originalIndex: index }));
+                userSelection.sort(() => 0.5 - Math.random());
+
+                const container = document.createElement('div');
+                container.className = 'sequence-container';
+                let sequenceItems = [];
+
+                // Функция для создания элемента последовательности
+                function createSequenceItem(item, idx) {
+                    const div = document.createElement('div');
+                    div.className = 'sequence-item';
+                    div.dataset.index = idx;
+                    
+                    div.innerHTML = `
+                        <span style="font-weight:bold; margin-right:10px; color:#4a6ee0;">${idx + 1}.</span>
+                        <span>${item.text}</span>
+                        <div class="seq-buttons">
+                            <button class="seq-btn up"><i class="fas fa-arrow-up"></i></button>
+                            <button class="seq-btn down"><i class="fas fa-arrow-down"></i></button>
+                        </div>
+                    `;
+
+                    const upBtn = div.querySelector('.up');
+                    const downBtn = div.querySelector('.down');
+
+                    if (upBtn) {
+                        upBtn.disabled = idx === 0;
+                        upBtn.onclick = () => {
+                            if (isAnswerChecked) return;
+                            moveItem(idx, 'up');
+                        };
+                    }
+
+                    if (downBtn) {
+                        downBtn.disabled = idx === userSelection.length - 1;
+                        downBtn.onclick = () => {
+                            if (isAnswerChecked) return;
+                            moveItem(idx, 'down');
+                        };
+                    }
+
+                    return div;
+                }
+
+                // Функция для перемещения элемента с анимацией
                 function moveItem(index, direction) {
                     if ((direction === 'up' && index === 0) || (direction === 'down' && index === userSelection.length - 1)) {
                         return;
@@ -320,9 +366,8 @@
                     const targetIndex = direction === 'up' ? index - 1 : index + 1;
                     
                     // Анимация перемещения
-                    const items = container.querySelectorAll('.sequence-item');
-                    const movingItem = items[index];
-                    const targetItem = items[targetIndex];
+                    const movingItem = sequenceItems[index];
+                    const targetItem = sequenceItems[targetIndex];
                     
                     // Добавляем классы для анимации
                     movingItem.classList.add('moving');
@@ -330,16 +375,19 @@
                     
                     // Меняем элементы в массиве
                     [userSelection[index], userSelection[targetIndex]] = [userSelection[targetIndex], userSelection[index]];
+                    [sequenceItems[index], sequenceItems[targetIndex]] = [sequenceItems[targetIndex], sequenceItems[index]];
                     
-                    // Обновляем номера и текст
+                    // Обновляем номера и индексы
                     setTimeout(() => {
                         // Обновляем номер у перемещаемого элемента
                         const movingNumber = movingItem.querySelector('span:first-child');
                         movingNumber.textContent = `${targetIndex + 1}.`;
+                        movingItem.dataset.index = targetIndex;
                         
                         // Обновляем номер у целевого элемента
                         const targetNumber = targetItem.querySelector('span:first-child');
                         targetNumber.textContent = `${index + 1}.`;
+                        targetItem.dataset.index = index;
                         
                         // Меняем позиции элементов в DOM
                         if (direction === 'up') {
@@ -352,29 +400,56 @@
                         movingItem.classList.remove('moving');
                         targetItem.classList.remove('target-moving');
                         
-                        // Обновляем состояние кнопок
-                        updateButtons();
+                        // Обновляем состояние кнопок ВСЕХ элементов
+                        updateAllButtons();
                     }, 300);
                 }
 
-                // Функция для обновления состояния кнопок
-                function updateButtons() {
-                    const items = container.querySelectorAll('.sequence-item');
-                    items.forEach((item, idx) => {
+                // Функция для обновления состояния кнопок всех элементов
+                function updateAllButtons() {
+                    sequenceItems.forEach((item, idx) => {
                         const upBtn = item.querySelector('.up');
                         const downBtn = item.querySelector('.down');
                         
                         if (upBtn) {
                             upBtn.disabled = idx === 0;
                             upBtn.style.opacity = idx === 0 ? '0.5' : '1';
+                            // Обновляем обработчик
+                            upBtn.onclick = () => {
+                                if (isAnswerChecked) return;
+                                moveItem(idx, 'up');
+                            };
                         }
                         
                         if (downBtn) {
                             downBtn.disabled = idx === userSelection.length - 1;
                             downBtn.style.opacity = idx === userSelection.length - 1 ? '0.5' : '1';
+                            // Обновляем обработчик
+                            downBtn.onclick = () => {
+                                if (isAnswerChecked) return;
+                                moveItem(idx, 'down');
+                            };
                         }
                     });
                 }
+
+                // Создаем начальные элементы
+                userSelection.forEach((item, idx) => {
+                    const div = createSequenceItem(item, idx);
+                    sequenceItems.push(div);
+                    container.appendChild(div);
+                });
+                
+                // Добавляем анимацию появления
+                setTimeout(() => {
+                    sequenceItems.forEach(item => {
+                        item.classList.add('new-item');
+                        setTimeout(() => item.classList.remove('new-item'), 100);
+                    });
+                }, 50);
+
+                answerContainer.appendChild(container);
+            }
 
                 // Создаем начальные элементы
                 userSelection.forEach((item, idx) => {
