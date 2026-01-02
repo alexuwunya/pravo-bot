@@ -93,6 +93,7 @@
 
             // --- 1. Загрузка и подготовка данных ---
 
+
             async function initGame() {
                 try {
                     // Загружаем JSON файл с вопросами
@@ -102,13 +103,10 @@
                     const data = await response.json();
                     allQuestions = data;
 
-                    // Выбираем 15 случайных вопросов для текущей игры
-                    gameQuestions = getRandomItems(allQuestions, 15);
-
-                    // Если вопросов меньше 15, берем все
-                    if (gameQuestions.length === 0 && allQuestions.length > 0) {
-                        gameQuestions = allQuestions;
-                    }
+                    gameQuestions = [...allQuestions];
+                    
+                    // Перемешиваем все вопросы для разнообразия
+                    gameQuestions.sort(() => 0.5 - Math.random());
 
                     // Запуск первого вопроса
                     loadQuestion(0);
@@ -118,12 +116,6 @@
                     checkBtn.style.display = 'none';
                     hintBtn.style.display = 'none';
                 }
-            }
-
-            function getRandomItems(arr, count) {
-                if (!arr || arr.length === 0) return [];
-                const shuffled = [...arr].sort(() => 0.5 - Math.random());
-                return shuffled.slice(0, count);
             }
 
             // --- 2. Рендеринг вопросов ---
@@ -404,11 +396,9 @@
             }
 
             // --- 3. Проверка ответов ---
-
             checkBtn.addEventListener('click', () => {
                 if (isAnswerChecked) return;
 
-                // Валидация: выбран ли ответ
                 let isSelectionEmpty = false;
                 if (userSelection === null) isSelectionEmpty = true;
                 if (Array.isArray(userSelection) && userSelection.length === 0) isSelectionEmpty = true;
@@ -434,14 +424,12 @@
                         break;
                     case 'matching':
                         isCorrect = true;
-                        // Проверяем каждую пару
                         for (let key in q.correctPairs) {
                             if (userSelection[key] !== q.correctPairs[key]) {
                                 isCorrect = false;
                                 break;
                             }
                         }
-                        // Проверяем, что выбрано всё
                         if (Object.keys(userSelection).length !== Object.keys(q.correctPairs).length) isCorrect = false;
                         break;
                     case 'sequence':
@@ -472,23 +460,38 @@
                     currentScore += 10;
                     correctAnswersCount++;
                     showNotification('Правильно! +10 баллов', 'correct');
-                    // Можно добавить визуальный эффект для контейнера
                     answerContainer.style.opacity = '0.8';
+                    
+                    // Обновляем статистику
+                    scoreEl.textContent = currentScore;
+                    correctEl.textContent = correctAnswersCount;
+
+                    // Меняем кнопки
+                    checkBtn.style.display = 'none';
+                    
+                    if (currentQIndex < gameQuestions.length - 1) {
+                        nextBtn.style.display = 'flex';
+                    } else {
+                        finishGame();
+                    }
+                    
+                    isAnswerChecked = true;
                 } else {
-                    showNotification('Неправильно!', 'incorrect');
-                    // Можно показать правильный ответ, но пока оставим как есть
+                    // НЕПРАВИЛЬНЫЙ ОТВЕТ - сразу завершаем игру
+                    showNotification('Неправильно! Игра окончена', 'incorrect');
+                    
+                    // Обновляем статистику (правильные ответы остаются как есть, счет не меняется)
+                    scoreEl.textContent = currentScore;
+                    correctEl.textContent = correctAnswersCount;
+                    
+                    // Показываем результат игры
+                    setTimeout(() => {
+                        finishGame();
+                    }, 1500);
                 }
-
-                // Обновляем статистику
-                scoreEl.textContent = currentScore;
-                correctEl.textContent = correctAnswersCount;
-
-                // Меняем кнопки
-                checkBtn.style.display = 'none';
-                nextBtn.style.display = 'flex';
-                isAnswerChecked = true;
             });
 
+            // Изменяем функцию nextBtn.addEventListener для корректной обработки
             nextBtn.addEventListener('click', () => {
                 if (currentQIndex < gameQuestions.length - 1) {
                     loadQuestion(currentQIndex + 1);
@@ -498,15 +501,12 @@
                 }
             });
 
-            hintBtn.addEventListener('click', () => {
-                alert("В этой версии игры подсказки отключены для сложности!");
-            });
-
             function finishGame() {
-                // Вычисляем рейтинг
                 let rating = '';
-                if (correctAnswersCount >= 13) rating = '⭐⭐⭐ Отлично!';
-                else if (correctAnswersCount >= 8) rating = '⭐⭐ Хорошо!';
+                if (correctAnswersCount >= 20) rating = '⭐⭐⭐⭐⭐ Идеально!';
+                else if (correctAnswersCount >= 15) rating = '⭐⭐⭐⭐ Отлично!';
+                else if (correctAnswersCount >= 10) rating = '⭐⭐⭐ Хорошо!';
+                else if (correctAnswersCount >= 5) rating = '⭐⭐ Неплохо!';
                 else rating = '⭐ Старайся лучше!';
 
                 answerContainer.innerHTML = `
@@ -514,7 +514,9 @@
                         <h2 style="color:#2c3e50; margin-bottom:15px;">Игра окончена!</h2>
                         <div style="font-size:3rem; margin-bottom:10px;">${rating}</div>
                         <p style="font-size:1.2rem; margin-bottom:5px;">Ваш счёт: <b>${currentScore}</b></p>
-                        <p style="color:#666; margin-bottom:25px;">Правильных ответов: ${correctAnswersCount} из ${gameQuestions.length}</p>
+                        <p style="color:#666; margin-bottom:5px;">Правильных ответов: ${correctAnswersCount} из ${gameQuestions.length}</p>
+                        <p style="color:#666; margin-bottom:5px;">Процент правильных: <b>${Math.round((correctAnswersCount / gameQuestions.length) * 100)}%</b></p>
+                        <p style="color:#666; margin-bottom:25px; font-size:0.9rem;">Последний вопрос: ${currentQIndex + 1} из ${gameQuestions.length}</p>
 
                         <button class="menu-btn" onclick="location.reload()" style="justify-content:center; margin-top:10px; background:linear-gradient(135deg, #2ecc71, #27ae60);">
                             <i class="fas fa-redo"></i> Сыграть снова

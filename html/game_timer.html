@@ -109,13 +109,7 @@
                     const data = await response.json();
                     allQuestions = data;
 
-                    // Выбираем 15 случайных вопросов для текущей игры
-                    gameQuestions = getRandomItems(allQuestions, 15);
-
-                    // Если вопросов меньше 15, берем все
-                    if (gameQuestions.length === 0 && allQuestions.length > 0) {
-                        gameQuestions = allQuestions;
-                    }
+                    gameQuestions = [...allQuestions].sort(() => 0.5 - Math.random());
 
                     // Запуск первого вопроса
                     loadQuestion(0);
@@ -127,11 +121,6 @@
                 }
             }
 
-            function getRandomItems(arr, count) {
-                if (!arr || arr.length === 0) return [];
-                const shuffled = [...arr].sort(() => 0.5 - Math.random());
-                return shuffled.slice(0, count);
-            }
 
             // --- 2. Рендеринг вопросов ---
 
@@ -519,8 +508,10 @@
                 clearInterval(gameTimer);
                 isGameActive = false;
                 let rating = '';
-                if (correctAnswersCount >= 13) rating = '⭐⭐⭐ Отлично!';
-                else if (correctAnswersCount >= 8) rating = '⭐⭐ Хорошо!';
+                if (correctAnswersCount >= 20) rating = '⭐⭐⭐⭐⭐ Идеально!';
+                else if (correctAnswersCount >= 15) rating = '⭐⭐⭐⭐ Отлично!';
+                else if (correctAnswersCount >= 10) rating = '⭐⭐⭐ Хорошо!';
+                else if (correctAnswersCount >= 5) rating = '⭐⭐ Неплохо!';
                 else rating = '⭐ Старайся лучше!';
 
                 answerContainer.innerHTML = `
