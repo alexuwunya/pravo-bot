@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Правовые нормы для детей</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container" id="gameContainer">
+        <a href="../index.html" class="back-to-main-btn">
+            <i class="fas fa-home"></i>
+            <span>На главную</span>
+        </a>
+        <div class="header">
+            <h1 style="color: black;"><i class="fas fa-book" style="color: #6b6fd5;"></i> Учим правовым нормам</h1>
+            <p class="subtitle" style="color: black;">Игровые задания по праву</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <span class="number" id="questionNumber">1</span>
+                <span class="label">ВОПРОС</span>
+            </div>
+            <div class="stat-item">
+                <span class="number" id="score">0</span>
+                <span class="label">БАЛЛЫ</span>
+            </div>
+            <div class="stat-item">
+                <span class="number" id="correct">0</span>
+                <span class="label">ПРАВИЛЬНО</span>
+            </div>
+        </div>
+
+        <div class="question-block fade-in" id="questionBlock">
+            <div class="question-text" id="questionText">
+                Загрузка вопроса...
+            </div>
+
+            <div id="answerContainer">
+                <!-- Здесь будут варианты ответов -->
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>© 2025 Детский правовой бот. Все права защищены.</p>
+            <p>Игра предназначена для изучения правовых норм детьми</p>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-hint" id="hintBtn">
+            <i class="fas fa-lightbulb"></i> Подсказка
+        </button>
+        <button class="btn btn-check" id="checkBtn">
+            <i class="fas fa-check"></i> Проверить
+        </button>
+        <button class="btn btn-next" id="nextBtn" style="display: none;">
+            <i class="fas fa-arrow-right"></i> Следующий вопрос
+        </button>
+    </div>
+
+    <div class="result-message" id="resultMessage"></div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tg = window.Telegram.WebApp;
+            tg.expand();
+            tg.ready();
+
+            // Элементы UI
+            const questionText = document.getElementById('questionText');
+            const answerContainer = document.getElementById('answerContainer');
+            const questionNumberEl = document.getElementById('questionNumber');
+            const scoreEl = document.getElementById('score');
+            const correctEl = document.getElementById('correct');
+            const resultMessage = document.getElementById('resultMessage');
+
+            // Кнопки
+            const checkBtn = document.getElementById('checkBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const hintBtn = document.getElementById('hintBtn');
+
+            // Состояние игры
+            let allQuestions = [];
+            let gameQuestions = [];
+            let currentQIndex = 0;
+            let currentScore = 0;
+            let correctAnswersCount = 0;
+            let userSelection = null;
+            let isAnswerChecked = false;
+
+            // --- 1. Загрузка и подготовка данных ---
+
+            async function initGame() {
+                try {
+                    // Загружаем JSON файл с вопросами
+                    const response = await fetch('questions.json');
+                    if (!response.ok) throw new Error("Не удалось загрузить вопросы");
+
+                    const data = await response.json();
+                    allQuestions = data;
+
+                    // Выбираем 15 случайных вопросов для текущей игры
+                    gameQuestions = getRandomItems(allQuestions, 15);
+
+                    // Если вопросов меньше 15, берем все
+                    if (gameQuestions.length === 0 && allQuestions.length > 0) {
+                        gameQuestions = allQuestions;
+                    }
+
+                    // Запуск первого вопроса
+                    loadQuestion(0);
+                } catch (error) {
+                    questionText.innerHTML = "Ошибка загрузки вопросов.<br><br>Убедитесь, что файл <b>questions.json</b> находится в той же папке и игра запущена через веб-сервер (GitHub Pages или локальный сервер).";
+                    console.error(error);
+                    checkBtn.style.display = 'none';
+                    hintBtn.style.display = 'none';
+                }
+            }
+
+            function getRandomItems(arr, count) {
+                if (!arr || arr.length === 0) return [];
+                const shuffled = [...arr].sort(() => 0.5 - Math.random());
+                return shuffled.slice(0, count);
+            }
+
+            // --- 2. Рендеринг вопросов ---
+
+            function loadQuestion(index) {
+                const q = gameQuestions[index];
+                currentQIndex = index;
+                isAnswerChecked = false;
+                userSelection = null;
+
+                // Обновляем UI
+                questionNumberEl.textContent = index + 1;
+                answerContainer.innerHTML = '';
+                checkBtn.style.display = 'flex';
+                nextBtn.style.display = 'none';
+                hintBtn.disabled = false;
+                resultMessage.style.display = 'none';
+
+                // Анимация появления
+                const block = document.getElementById('questionBlock');
+                block.classList.remove('fade-in');
+                void block.offsetWidth; // триггер рефлоу
+                block.classList.add('fade-in');
+
+                // Текст вопроса
+                questionText.innerHTML = q.question;
+
+                // Добавляем подсказки по типу вопроса
+                if(q.type === 'multiple') questionText.innerHTML += '<br><small style="font-weight:normal; font-size:0.9rem; color:#666;">(Выберите несколько вариантов)</small>';
+                if(q.type === 'find-error') questionText.innerHTML += '<br><small style="font-weight:normal; font-size:0.9rem; color:#666;">(Нажмите на строку с ошибкой)</small>';
+                if(q.type === 'sequence') questionText.innerHTML += '<br><small style="font-weight:normal; font-size:0.9rem; color:#666;">(Расставьте в правильном порядке)</small>';
+                if(q.type === 'matching') questionText.innerHTML += '<br><small style="font-weight:normal; font-size:0.9rem; color:#666;">(Соедините пары)</small>';
+
+                // Рендер в зависимости от типа
+                switch (q.type) {
+                    case 'single':
+                    case 'multiple':
+                        renderMultipleChoice(q);
+                        break;
+                    case 'matching':
+                        renderMatching(q);
+                        break;
+                    case 'sequence':
+                        renderSequence(q);
+                        break;
+                    case 'fill-blanks':
+                        renderFillBlanks(q);
+                        break;
+                    case 'find-error':
+                        renderFindError(q);
+                        break;
+                    default:
+                        questionText.textContent = "Тип вопроса не поддерживается: " + q.type;
+                }
+            }
+
+            // Рендер: Выбор вариантов (Single/Multiple)
+            function renderMultipleChoice(q) {
+                // Если multiple - массив, если single - null
+                userSelection = q.type === 'multiple' ? [] : null;
+                const container = document.createElement('div');
+                container.className = 'options-container';
+
+                q.options.forEach((opt, idx) => {
+                    const btn = document.createElement('div');
+                    btn.className = 'option-btn';
+                    btn.innerHTML = `
+                        <div class="checkbox"></div>
+                        <div class="option-text">${opt}</div>
+                    `;
+
+                    btn.addEventListener('click', () => {
+                        if (isAnswerChecked) return;
+
+                        if (q.type === 'single') {
+                            // Сброс остальных
+                            container.querySelectorAll('.option-btn').forEach(b => {
+                                b.classList.remove('selected');
+                                b.querySelector('.checkbox').classList.remove('checked');
+                            });
+                            // Выбор текущего
+                            btn.classList.add('selected');
+                            btn.querySelector('.checkbox').classList.add('checked');
+                            userSelection = idx;
+                        } else {
+                            // Множественный выбор
+                            btn.classList.toggle('selected');
+                            const cb = btn.querySelector('.checkbox');
+                            cb.classList.toggle('checked');
+
+                            if (userSelection.includes(idx)) {
+                                userSelection = userSelection.filter(i => i !== idx);
+                            } else {
+                                userSelection.push(idx);
+                            }
+                        }
+                    });
+                    container.appendChild(btn);
+                });
+                answerContainer.appendChild(container);
+            }
+
+            // Рендер: Соедини пары (Matching)
+            function renderMatching(q) {
+                userSelection = {};
+                const container = document.createElement('div');
+                container.className = 'matching-container';
+
+                // Перемешиваем правые части для сложности
+                const rightOptions = [...q.rightItems].sort(() => 0.5 - Math.random());
+
+                q.leftItems.forEach((item, idx) => {
+                    const row = document.createElement('div');
+                    row.className = 'matching-row';
+
+                    const leftDiv = document.createElement('div');
+                    leftDiv.className = 'matching-term';
+                    leftDiv.textContent = item;
+
+                    const select = document.createElement('select');
+                    select.className = 'matching-select';
+                    select.dataset.left = item;
+
+                    const defaultOpt = document.createElement('option');
+                    defaultOpt.text = "Выберите ответ...";
+                    defaultOpt.value = "";
+                    select.appendChild(defaultOpt);
+
+                    rightOptions.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.text = opt;
+                        select.appendChild(option);
+                    });
+
+                    select.addEventListener('change', (e) => {
+                        userSelection[item] = e.target.value;
+                    });
+
+                    row.appendChild(leftDiv);
+                    row.appendChild(select);
+                    container.appendChild(row);
+                });
+                answerContainer.appendChild(container);
+            }
+
+            // Рендер: Последовательность (Sequence)
+            function renderSequence(q) {
+                // Создаем массив объектов с исходными индексами
+                userSelection = q.steps.map((step, index) => ({ text: step, originalIndex: index }));
+                // Перемешиваем для отображения
+                userSelection.sort(() => 0.5 - Math.random());
+
+                const container = document.createElement('div');
+                container.className = 'sequence-container';
+
+                function updateSequenceUI() {
+                    container.innerHTML = '';
+                    userSelection.forEach((item, idx) => {
+                        const div = document.createElement('div');
+                        div.className = 'sequence-item';
+                        div.innerHTML = `
+                            <span style="font-weight:bold; margin-right:10px; color:#4a6ee0;">${idx + 1}.</span>
+                            <span>${item.text}</span>
+                            <div class="seq-buttons">
+                                <button class="seq-btn up" ${idx === 0 ? 'disabled' : ''}><i class="fas fa-arrow-up"></i></button>
+                                <button class="seq-btn down" ${idx === userSelection.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-down"></i></button>
+                            </div>
+                        `;
+
+                        // Обработчики кнопок
+                        const upBtn = div.querySelector('.up');
+                        const downBtn = div.querySelector('.down');
+
+                        if (upBtn) upBtn.onclick = () => {
+                            if (isAnswerChecked) return;
+                            [userSelection[idx], userSelection[idx - 1]] = [userSelection[idx - 1], userSelection[idx]];
+                            updateSequenceUI();
+                        };
+
+                        if (downBtn) downBtn.onclick = () => {
+                            if (isAnswerChecked) return;
+                            [userSelection[idx], userSelection[idx + 1]] = [userSelection[idx + 1], userSelection[idx]];
+                            updateSequenceUI();
+                        };
+
+                        container.appendChild(div);
+                    });
+                }
+                updateSequenceUI();
+                answerContainer.appendChild(container);
+            }
+
+            // Рендер: Заполни пропуски (Fill Blanks)
+            function renderFillBlanks(q) {
+                userSelection = {};
+
+                const codeBlock = document.createElement('div');
+                codeBlock.className = 'code-blanks';
+                codeBlock.innerHTML = q.code; // HTML строка с <span class="blank">
+
+                const optionsContainer = document.createElement('div');
+                optionsContainer.className = 'blank-options';
+
+                // Собираем все варианты ответов
+                let allOptions = [];
+                for (let key in q.blanks) {
+                    allOptions = allOptions.concat(q.blanks[key]);
+                }
+                allOptions.sort(() => 0.5 - Math.random());
+
+                let activeBlankId = null;
+
+                // Навешиваем обработчики на бланки внутри текста
+                const blanks = codeBlock.querySelectorAll('.blank');
+                blanks.forEach(blank => {
+                    blank.textContent = "____";
+                    blank.onclick = () => {
+                        if (isAnswerChecked) return;
+                        blanks.forEach(b => b.classList.remove('filled'));
+                        blank.classList.add('filled');
+                        activeBlankId = blank.dataset.id;
+                    };
+                });
+
+                // Создаем кнопки вариантов
+                allOptions.forEach(optText => {
+                    const btn = document.createElement('button');
+                    btn.className = 'blank-option';
+                    btn.textContent = optText;
+                    btn.onclick = () => {
+                        if (isAnswerChecked || !activeBlankId) return;
+
+                        // Записываем ответ
+                        userSelection[activeBlankId] = optText;
+
+                        // Визуально обновляем бланк
+                        const targetBlank = codeBlock.querySelector(`.blank[data-id="${activeBlankId}"]`);
+                        if (targetBlank) {
+                            targetBlank.textContent = optText;
+                            targetBlank.style.borderStyle = 'solid';
+                            targetBlank.style.borderColor = '#2ecc71';
+                            targetBlank.classList.remove('filled');
+                            activeBlankId = null; // Сбрасываем выбор
+                        }
+                    };
+                    optionsContainer.appendChild(btn);
+                });
+
+                answerContainer.appendChild(codeBlock);
+                answerContainer.appendChild(optionsContainer);
+            }
+
+            // Рендер: Найди ошибку (Find Error)
+            function renderFindError(q) {
+                userSelection = null;
+
+                const container = document.createElement('div');
+                container.className = 'code-block';
+
+                q.code.forEach((line, idx) => {
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'code-line';
+                    lineDiv.textContent = line;
+
+                    lineDiv.onclick = () => {
+                        if (isAnswerChecked) return;
+
+                        container.querySelectorAll('.code-line').forEach(l => l.classList.remove('selected'));
+                        lineDiv.classList.add('selected');
+                        userSelection = idx + 1; // 1-based index как в JSON
+                    };
+
+                    container.appendChild(lineDiv);
+                });
+
+                answerContainer.appendChild(container);
+            }
+
+            // --- 3. Проверка ответов ---
+
+            checkBtn.addEventListener('click', () => {
+                if (isAnswerChecked) return;
+
+                // Валидация: выбран ли ответ
+                let isSelectionEmpty = false;
+                if (userSelection === null) isSelectionEmpty = true;
+                if (Array.isArray(userSelection) && userSelection.length === 0) isSelectionEmpty = true;
+                if (typeof userSelection === 'object' && !Array.isArray(userSelection) && userSelection !== null && Object.keys(userSelection).length === 0) isSelectionEmpty = true;
+
+                if (isSelectionEmpty) {
+                    showNotification('Пожалуйста, выберите ответ!', 'incorrect');
+                    return;
+                }
+
+                const q = gameQuestions[currentQIndex];
+                let isCorrect = false;
+
+                switch (q.type) {
+                    case 'single':
+                        isCorrect = (userSelection === q.correct);
+                        break;
+                    case 'multiple':
+                        // Сортируем оба массива и сравниваем JSON строки
+                        const userSorted = [...userSelection].sort((a, b) => a - b);
+                        const correctSorted = [...q.correct].sort((a, b) => a - b);
+                        isCorrect = JSON.stringify(userSorted) === JSON.stringify(correctSorted);
+                        break;
+                    case 'matching':
+                        isCorrect = true;
+                        // Проверяем каждую пару
+                        for (let key in q.correctPairs) {
+                            if (userSelection[key] !== q.correctPairs[key]) {
+                                isCorrect = false;
+                                break;
+                            }
+                        }
+                        // Проверяем, что выбрано всё
+                        if (Object.keys(userSelection).length !== Object.keys(q.correctPairs).length) isCorrect = false;
+                        break;
+                    case 'sequence':
+                        const currentOrder = userSelection.map(item => item.originalIndex);
+                        isCorrect = JSON.stringify(currentOrder) === JSON.stringify(q.correctOrder);
+                        break;
+                    case 'fill-blanks':
+                        isCorrect = true;
+                        if (Object.keys(userSelection).length < q.correct.length) {
+                            isCorrect = false;
+                        } else {
+                            for (let i = 0; i < q.correct.length; i++) {
+                                // id в JSON начинаются с 1
+                                if (userSelection[String(i+1)] !== q.correct[i]) {
+                                    isCorrect = false;
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+                    case 'find-error':
+                        isCorrect = (userSelection === q.errorLine);
+                        break;
+                }
+
+                // Обработка результата
+                if (isCorrect) {
+                    currentScore += 10;
+                    correctAnswersCount++;
+                    showNotification('Правильно! +10 баллов', 'correct');
+                    // Можно добавить визуальный эффект для контейнера
+                    answerContainer.style.opacity = '0.8';
+                } else {
+                    showNotification('Неправильно!', 'incorrect');
+                    // Можно показать правильный ответ, но пока оставим как есть
+                }
+
+                // Обновляем статистику
+                scoreEl.textContent = currentScore;
+                correctEl.textContent = correctAnswersCount;
+
+                // Меняем кнопки
+                checkBtn.style.display = 'none';
+                nextBtn.style.display = 'flex';
+                isAnswerChecked = true;
+            });
+
+            nextBtn.addEventListener('click', () => {
+                if (currentQIndex < gameQuestions.length - 1) {
+                    loadQuestion(currentQIndex + 1);
+                    answerContainer.style.opacity = '1';
+                } else {
+                    finishGame();
+                }
+            });
+
+            hintBtn.addEventListener('click', () => {
+                alert("В этой версии игры подсказки отключены для сложности!");
+            });
+
+            function finishGame() {
+                // Вычисляем рейтинг
+                let rating = '';
+                if (correctAnswersCount >= 13) rating = '⭐⭐⭐ Отлично!';
+                else if (correctAnswersCount >= 8) rating = '⭐⭐ Хорошо!';
+                else rating = '⭐ Старайся лучше!';
+
+                answerContainer.innerHTML = `
+                    <div style="text-align:center; padding: 20px;">
+                        <h2 style="color:#2c3e50; margin-bottom:15px;">Игра окончена!</h2>
+                        <div style="font-size:3rem; margin-bottom:10px;">${rating}</div>
+                        <p style="font-size:1.2rem; margin-bottom:5px;">Ваш счёт: <b>${currentScore}</b></p>
+                        <p style="color:#666; margin-bottom:25px;">Правильных ответов: ${correctAnswersCount} из ${gameQuestions.length}</p>
+
+                        <button class="menu-btn" onclick="location.reload()" style="justify-content:center; margin-top:10px; background:linear-gradient(135deg, #2ecc71, #27ae60);">
+                            <i class="fas fa-redo"></i> Сыграть снова
+                        </button>
+                        <a href="index.html" class="menu-btn" style="justify-content:center; margin-top:10px; background:linear-gradient(135deg, #4a6ee0, #3a5ed0); text-decoration:none;">
+                            <i class="fas fa-home"></i> В меню
+                        </a>
+                    </div>
+                `;
+                checkBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+                hintBtn.style.display = 'none';
+                questionText.style.display = 'none';
+
+                // Сохраняем результат
+                const savedGames = parseInt(localStorage.getItem('totalGames') || '0') + 1;
+                const bestScore = parseInt(localStorage.getItem('bestScore') || '0');
+                localStorage.setItem('totalGames', savedGames);
+                if (currentScore > bestScore) {
+                    localStorage.setItem('bestScore', currentScore);
+                }
+            }
+
+            function showNotification(text, type) {
+                resultMessage.textContent = text;
+                resultMessage.className = 'result-message ' + type;
+                resultMessage.style.display = 'block';
+                setTimeout(() => {
+                    resultMessage.style.display = 'none';
+                }, 2000);
+            }
+
+            // Старт
+            initGame();
+        });
+    </script>
+</body>
+</html>
