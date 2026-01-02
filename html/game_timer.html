@@ -94,6 +94,9 @@
             let correctAnswersCount = 0;
             let userSelection = null;
             let isAnswerChecked = false;
+            let gameTime = 2 * 60; 
+            let gameTimer = null;
+            let isGameActive = false;
 
             // --- 1. Загрузка и подготовка данных ---
 
@@ -133,6 +136,8 @@
             // --- 2. Рендеринг вопросов ---
 
             function loadQuestion(index) {
+                if (!isGameActive && gameTime <= 0) {
+                return;}
                 const q = gameQuestions[index];
                 currentQIndex = index;
                 isAnswerChecked = false;
@@ -411,7 +416,10 @@
 
             checkBtn.addEventListener('click', () => {
                 if (isAnswerChecked) return;
-
+                if (!isGameActive) {
+                showNotification('Игра завершена!', 'incorrect');
+                return;}
+                if (isAnswerChecked) return;
                 // Валидация: выбран ли ответ
                 let isSelectionEmpty = false;
                 if (userSelection === null) isSelectionEmpty = true;
@@ -559,25 +567,32 @@
                 const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                 document.getElementById('timerDisplay').textContent = formattedTime;
                 
-                // Меняем цвет при малом времени
                 const timerElement = document.getElementById('timerDisplay');
+                const parentElement = timerElement.parentElement; // .stat-item
+                
                 if (gameTime <= 60) { // 1 минута
                     timerElement.style.color = 'red';
-                    // Мигание при последних 30 секундах
+                    parentElement.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+                    
                     if (gameTime <= 30) {
-                        timerElement.style.animation = gameTime % 2 === 0 ? 'none' : 'pulse 1s infinite';
+                        timerElement.style.animation = 'pulse 1s infinite';
+                    } else {
+                        timerElement.style.animation = 'none';
                     }
-                } else if (gameTime <= 5 * 60) { // 5 минут
+                } else if (gameTime <= 1 * 60) {
                     timerElement.style.color = 'orange';
+                    parentElement.style.backgroundColor = 'rgba(255, 165, 0, 0.1)';
+                    timerElement.style.animation = 'none';
                 } else {
                     timerElement.style.color = '';
+                    parentElement.style.backgroundColor = '';
                     timerElement.style.animation = 'none';
                 }
             }
             
             function startTimer() {
                     if (gameTimer) clearInterval(gameTimer);
-                    gameTime = 30 * 60; // 30 минут
+                    gameTime = 2 * 60; 
                     isGameActive = true;
                     updateTimer();
                     
