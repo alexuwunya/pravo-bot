@@ -122,28 +122,19 @@
                         // Фильтруем вопросы строго по теме
                         gameQuestions = allQuestions.filter(q => q.theme === targetTheme);
 
-                        // Если вопросов по теме нет (например, еще не добавлены в JSON),
-                        // можно либо показать ошибку, либо загрузить все (выберите вариант)
                         if (gameQuestions.length === 0) {
-                            console.warn(`Вопросы по теме "${targetTheme}" не найдены.`);
-                            // Раскомментируйте строку ниже, если хотите fallback на все вопросы:
-                            // gameQuestions = allQuestions;
-
-                            // Или выводим сообщение пользователю:
                             questionText.innerHTML = `Вопросы по теме "${targetTheme}" пока не добавлены.`;
                             checkBtn.style.display = 'none';
                             hintBtn.style.display = 'none';
                             return;
                         }
                     } else {
-                        // Если тема не выбрана, берем все вопросы
                         gameQuestions = [...allQuestions];
                     }
 
-                    // Перемешиваем и обрезаем (если нужно)
                     gameQuestions = getRandomItems(gameQuestions, 15);
 
-                    // Если вопросов меньше 15, берем сколько есть
+                    // Fallback
                     if (gameQuestions.length === 0 && allQuestions.length > 0) {
                          // Fallback на случай ошибок фильтрации
                          gameQuestions = getRandomItems(allQuestions, 15);
@@ -309,49 +300,7 @@
                 answerContainer.appendChild(container);
             }
 
-            // Рендер: Последовательность (Sequence)
             function renderSequence(q) {
-                userSelection = q.steps.map((step, index) => ({ text: step, originalIndex: index }));
-                userSelection.sort(() => 0.5 - Math.random());
-
-                const container = document.createElement('div');
-                container.className = 'sequence-container';
-
-                // Функция для создания элемента последовательности
-                function createSequenceItem(item, idx, isNew = false) {
-                    const div = document.createElement('div');
-                    div.className = 'sequence-item';
-                    if (isNew) {
-                        div.classList.add('new-item');
-                    }
-                    
-                    div.innerHTML = `
-                        <span style="font-weight:bold; margin-right:10px; color:#4a6ee0;">${idx + 1}.</span>
-                        <span>${item.text}</span>
-                        <div class="seq-buttons">
-                            <button class="seq-btn up" ${idx === 0 ? 'disabled' : ''}><i class="fas fa-arrow-up"></i></button>
-                            <button class="seq-btn down" ${idx === userSelection.length - 1 ? 'disabled' : ''}><i class="fas fa-arrow-down"></i></button>
-                        </div>
-                    `;
-
-                    const upBtn = div.querySelector('.up');
-                    const downBtn = div.querySelector('.down');
-
-                    if (upBtn) upBtn.onclick = () => {
-                        if (isAnswerChecked) return;
-                        moveItem(idx, 'up');
-                    };
-
-                    if (downBtn) downBtn.onclick = () => {
-                        if (isAnswerChecked) return;
-                        moveItem(idx, 'down');
-                    };
-
-                    return div;
-                }
-
-                // Функция для перемещения элемента с анимацией
-                            function renderSequence(q) {
                 userSelection = q.steps.map((step, index) => ({ text: step, originalIndex: index }));
                 userSelection.sort(() => 0.5 - Math.random());
 
@@ -490,28 +439,12 @@
                 answerContainer.appendChild(container);
             }
 
-                // Создаем начальные элементы
-                userSelection.forEach((item, idx) => {
-                    const div = createSequenceItem(item, idx, true);
-                    container.appendChild(div);
-                });
-                
-                // Убираем класс new-item после небольшой задержки
-                setTimeout(() => {
-                    const newItems = container.querySelectorAll('.new-item');
-                    newItems.forEach(item => item.classList.remove('new-item'));
-                }, 100);
-
-                answerContainer.appendChild(container);
-            }
-
-            // Рендер: Заполни пропуски (Fill Blanks)
             function renderFillBlanks(q) {
                 userSelection = {};
 
                 const codeBlock = document.createElement('div');
                 codeBlock.className = 'code-blanks';
-                codeBlock.innerHTML = q.code; // HTML строка с <span class="blank">
+                codeBlock.innerHTML = q.code;
 
                 const optionsContainer = document.createElement('div');
                 optionsContainer.className = 'blank-options';
@@ -570,25 +503,30 @@
                 userSelection = null;
 
                 const container = document.createElement('div');
-                // ИЗМЕНЕНИЕ: используем text-block вместо code-block
-                container.className = 'text-block';
+                container.className = 'options-container';
 
                 q.code.forEach((line, idx) => {
-                    const lineDiv = document.createElement('div');
-                    // ИЗМЕНЕНИЕ: используем text-line вместо code-line
-                    lineDiv.className = 'text-line';
-                    lineDiv.textContent = line;
+                    const btn = document.createElement('div');
+                    btn.className = 'option-btn';
 
-                    lineDiv.onclick = () => {
+                    btn.innerHTML = `
+                        <div class="checkbox"></div>
+                        <div class="option-text">${line}</div>
+                    `;
+
+                    btn.onclick = () => {
                         if (isAnswerChecked) return;
 
-                        // ИЗМЕНЕНИЕ: selector тоже обновляем
-                        container.querySelectorAll('.text-line').forEach(l => l.classList.remove('selected'));
-                        lineDiv.classList.add('selected');
-                        userSelection = idx + 1; // 1-based index как в JSON
+                        container.querySelectorAll('.option-btn').forEach(b => {
+                            b.classList.remove('selected');
+                            b.querySelector('.checkbox').classList.remove('checked');
+                        });
+                        btn.classList.add('selected');
+                        btn.querySelector('.checkbox').classList.add('checked');
+                        userSelection = idx + 1;
                     };
 
-                    container.appendChild(lineDiv);
+                    container.appendChild(btn);
                 });
 
                 answerContainer.appendChild(container);
@@ -729,8 +667,6 @@
 
             function finishGame() {
                 // Вычисляем рейтинг
-                clearInterval(gameTimer);
-                isGameActive = false;
                 let rating = '';
                 if (correctAnswersCount >= 15) rating = '⭐⭐⭐⭐⭐ Идеально!';
                 else if (correctAnswersCount >= 13) rating = '⭐⭐⭐⭐ Отлично!';
