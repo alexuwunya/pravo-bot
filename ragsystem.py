@@ -31,23 +31,22 @@ class RAGSystem:
         self.api_key = os.getenv("GROQ_API_KEY")
         if not self.api_key:
             logger.warning("⚠️ GROQ_API_KEY не найден! RAG не будет работать корректно.")
-
         self.client = qdrant_manager.get_client()
-
         self.groq_client = AsyncGroq(api_key=self.api_key)
-
         self.llm_model = "llama-3.3-70b-versatile"
-
         self.codex = paragraph
         self.document_name = document_name
         self.collection_name = collection_name
+        self.model = None
 
-        self.model = ModelManager.get_model()
-
+    async def initialize(self):
         logger.info(f"🔍 Init RAG (Groq) для: {self.document_name}, Коллекция: {self.collection_name}")
 
+        loop = asyncio.get_running_loop()
+        self.model = await loop.run_in_executor(None, ModelManager.get_model)
+
         self._validate_input_text()
-        self.create_embeddings_if_not_exists()
+        await self.create_embeddings_if_not_exists()
 
     def _validate_input_text(self):
         if not self.codex or len(self.codex.strip()) < 100:
@@ -85,24 +84,30 @@ class RAGSystem:
         logger.info(f"📄 Создано {len(chunks)} чанков для {self.document_name}")
         return chunks
 
-    def create_embeddings_if_not_exists(self):
+    async def create_embeddings_if_not_exists(self):
         try:
-            if not self.client.collection_exists(self.collection_name):
+            loop = asyncio.get_running_loop()
+            exists = await loop.run_in_executor(None, lambda: self.client.collection_exists(self.collection_name))
+
+            if not exists:
                 logger.info(f"🔧 Создаю коллекцию Qdrant: {self.collection_name}")
-                self.client.create_collection(
-                    collection_name=self.collection_name,
-                    vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+                await loop.run_in_executor(
+                    None,
+                    lambda: self.client.create_collection(
+                        collection_name=self.collection_name,
+                        vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+                    )
                 )
-                self.create_embeddings()
+                await self.create_embeddings()
             else:
-                count = self.client.count(self.collection_name).count
-                if count == 0:
+                count_result = await loop.run_in_executor(None, lambda: self.client.count(self.collection_name))
+                if count_result.count == 0:
                     logger.info(f"⚠️ Коллекция {self.collection_name} пуста, пересоздаю эмбеддинги.")
-                    self.create_embeddings()
+                    await self.create_embeddings()
         except Exception as e:
             logger.error(f"❌ Ошибка Qdrant: {e}")
 
-    def create_embeddings(self):
+    async def create_embeddings(self):
         try:
             chunks = self.get_articles_chunks()
             if not chunks:
@@ -110,8 +115,13 @@ class RAGSystem:
 
             texts = [f"passage: {c['text']}" for c in chunks]
 
-            logger.info("⏳ Генерация векторов...")
-            embeddings = self.model.encode(texts, normalize_embeddings=True)
+            logger.info("⏳ Генерация векторов (в фоне)...")
+
+            loop = asyncio.get_running_loop()
+            embeddings = await loop.run_in_executor(
+                None,
+                lambda: self.model.encode(texts, normalize_embeddings=True)
+            )
 
             points = []
             for i, (chunk, vector) in enumerate(zip(chunks, embeddings)):
@@ -121,7 +131,10 @@ class RAGSystem:
                     payload=chunk
                 ))
 
-            self.client.upsert(collection_name=self.collection_name, points=points)
+            await loop.run_in_executor(
+                None,
+                lambda: self.client.upsert(collection_name=self.collection_name, points=points)
+            )
             logger.info(f"✅ Загружено {len(points)} векторов в {self.collection_name}")
 
         except Exception as e:
@@ -154,6 +167,9 @@ class RAGSystem:
 
     async def answer_question(self, question):
         try:
+            if not self.model:
+                await self.initialize()
+
             context = await self.search_relevant_chunks_async(question)
             if not context:
                 return "❌ Не удалось найти информацию в документах."
@@ -161,14 +177,13 @@ class RAGSystem:
             system_prompt = f"Ты юрист-консультант по документу: {self.document_name}. Отвечай кратко, по сути, придерживайся длины ответа в 100-200 символов, не исользуй специальные символы Markdown разметки ссылаяйся на статьи. Представь ответ, готовый к отображению в telegram"
             user_content = f"Контекст:\n{context}\n\nВопрос: {question}"
 
-            # ИЗМЕНЕНИЕ: Запрос через Groq SDK вместо aiohttp/OpenRouter
             chat_completion = await self.groq_client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content}
                 ],
                 model=self.llm_model,
-                temperature=0.3,  # Немного понизил температуру для точности юридических ответов
+                temperature=0.3,
             )
 
             return chat_completion.choices[0].message.content
