@@ -92,6 +92,17 @@
             let isAnswerChecked = false;
 
             // --- 1. Загрузка и подготовка данных ---
+            // Карта соответствия URL-параметра и названия темы в JSON
+            const themeMap = {
+                'traffic': 'ПДД. Общие положения и средства персональной мобильности',
+                'rights': 'Права ребенка',
+                'family': 'Семья и обязанности',
+                'admin': 'Административная ответственность',
+                'finance': 'Финансовая грамотность',
+                'internet': 'Безопасность в интернете',
+                'symbols': 'Государственные символы',
+                'school': 'Школа и поведение'
+            };
 
             async function initGame() {
                 try {
@@ -102,18 +113,46 @@
                     const data = await response.json();
                     allQuestions = data;
 
-                    // Выбираем 15 случайных вопросов для текущей игры
-                    gameQuestions = getRandomItems(allQuestions, 15);
+                    // --- ЛОГИКА ФИЛЬТРАЦИИ ТЕМ ---
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const themeKey = urlParams.get('theme');
 
-                    // Если вопросов меньше 15, берем все
+                    if (themeKey && themeMap[themeKey]) {
+                        const targetTheme = themeMap[themeKey];
+                        // Фильтруем вопросы строго по теме
+                        gameQuestions = allQuestions.filter(q => q.theme === targetTheme);
+
+                        // Если вопросов по теме нет (например, еще не добавлены в JSON),
+                        // можно либо показать ошибку, либо загрузить все (выберите вариант)
+                        if (gameQuestions.length === 0) {
+                            console.warn(`Вопросы по теме "${targetTheme}" не найдены.`);
+                            // Раскомментируйте строку ниже, если хотите fallback на все вопросы:
+                            // gameQuestions = allQuestions;
+
+                            // Или выводим сообщение пользователю:
+                            questionText.innerHTML = `Вопросы по теме "${targetTheme}" пока не добавлены.`;
+                            checkBtn.style.display = 'none';
+                            hintBtn.style.display = 'none';
+                            return;
+                        }
+                    } else {
+                        // Если тема не выбрана, берем все вопросы
+                        gameQuestions = [...allQuestions];
+                    }
+
+                    // Перемешиваем и обрезаем (если нужно)
+                    gameQuestions = getRandomItems(gameQuestions, 15);
+
+                    // Если вопросов меньше 15, берем сколько есть
                     if (gameQuestions.length === 0 && allQuestions.length > 0) {
-                        gameQuestions = allQuestions;
+                         // Fallback на случай ошибок фильтрации
+                         gameQuestions = getRandomItems(allQuestions, 15);
                     }
 
                     // Запуск первого вопроса
                     loadQuestion(0);
                 } catch (error) {
-                    questionText.innerHTML = "Ошибка загрузки вопросов.<br><br>Убедитесь, что файл <b>questions.json</b> находится в той же папке и игра запущена через веб-сервер (GitHub Pages или локальный сервер).";
+                    questionText.innerHTML = "Ошибка загрузки вопросов.<br><br>Убедитесь, что файл <b>questions.json</b> находится в той же папке.";
                     console.error(error);
                     checkBtn.style.display = 'none';
                     hintBtn.style.display = 'none';
@@ -531,17 +570,20 @@
                 userSelection = null;
 
                 const container = document.createElement('div');
-                container.className = 'code-block';
+                // ИЗМЕНЕНИЕ: используем text-block вместо code-block
+                container.className = 'text-block';
 
                 q.code.forEach((line, idx) => {
                     const lineDiv = document.createElement('div');
-                    lineDiv.className = 'code-line';
+                    // ИЗМЕНЕНИЕ: используем text-line вместо code-line
+                    lineDiv.className = 'text-line';
                     lineDiv.textContent = line;
 
                     lineDiv.onclick = () => {
                         if (isAnswerChecked) return;
 
-                        container.querySelectorAll('.code-line').forEach(l => l.classList.remove('selected'));
+                        // ИЗМЕНЕНИЕ: selector тоже обновляем
+                        container.querySelectorAll('.text-line').forEach(l => l.classList.remove('selected'));
                         lineDiv.classList.add('selected');
                         userSelection = idx + 1; // 1-based index как в JSON
                     };

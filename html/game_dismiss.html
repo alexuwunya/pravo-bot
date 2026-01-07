@@ -104,7 +104,7 @@
                     allQuestions = data;
 
                     gameQuestions = [...allQuestions];
-                    
+
                     // Перемешиваем все вопросы для разнообразия
                     gameQuestions.sort(() => 0.5 - Math.random());
 
@@ -276,7 +276,7 @@
                     const div = document.createElement('div');
                     div.className = 'sequence-item';
                     div.dataset.index = idx;
-                    
+
                     div.innerHTML = `
                         <span style="font-weight:bold; margin-right:10px; color:#4a6ee0;">${idx + 1}.</span>
                         <span>${item.text}</span>
@@ -315,42 +315,42 @@
                     }
 
                     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-                    
+
                     // Анимация перемещения
                     const movingItem = sequenceItems[index];
                     const targetItem = sequenceItems[targetIndex];
-                    
+
                     // Добавляем классы для анимации
                     movingItem.classList.add('moving');
                     targetItem.classList.add('target-moving');
-                    
+
                     // Меняем элементы в массиве
                     [userSelection[index], userSelection[targetIndex]] = [userSelection[targetIndex], userSelection[index]];
                     [sequenceItems[index], sequenceItems[targetIndex]] = [sequenceItems[targetIndex], sequenceItems[index]];
-                    
+
                     // Обновляем номера и индексы
                     setTimeout(() => {
                         // Обновляем номер у перемещаемого элемента
                         const movingNumber = movingItem.querySelector('span:first-child');
                         movingNumber.textContent = `${targetIndex + 1}.`;
                         movingItem.dataset.index = targetIndex;
-                        
+
                         // Обновляем номер у целевого элемента
                         const targetNumber = targetItem.querySelector('span:first-child');
                         targetNumber.textContent = `${index + 1}.`;
                         targetItem.dataset.index = index;
-                        
+
                         // Меняем позиции элементов в DOM
                         if (direction === 'up') {
                             container.insertBefore(movingItem, targetItem);
                         } else {
                             container.insertBefore(targetItem, movingItem);
                         }
-                        
+
                         // Убираем классы анимации
                         movingItem.classList.remove('moving');
                         targetItem.classList.remove('target-moving');
-                        
+
                         // Обновляем состояние кнопок ВСЕХ элементов
                         updateAllButtons();
                     }, 300);
@@ -361,7 +361,7 @@
                     sequenceItems.forEach((item, idx) => {
                         const upBtn = item.querySelector('.up');
                         const downBtn = item.querySelector('.down');
-                        
+
                         if (upBtn) {
                             upBtn.disabled = idx === 0;
                             upBtn.style.opacity = idx === 0 ? '0.5' : '1';
@@ -371,7 +371,7 @@
                                 moveItem(idx, 'up');
                             };
                         }
-                        
+
                         if (downBtn) {
                             downBtn.disabled = idx === userSelection.length - 1;
                             downBtn.style.opacity = idx === userSelection.length - 1 ? '0.5' : '1';
@@ -390,7 +390,7 @@
                     sequenceItems.push(div);
                     container.appendChild(div);
                 });
-                
+
                 // Добавляем анимацию появления
                 setTimeout(() => {
                     sequenceItems.forEach(item => {
@@ -467,17 +467,20 @@
                 userSelection = null;
 
                 const container = document.createElement('div');
-                container.className = 'code-block';
+                // ИЗМЕНЕНИЕ: используем text-block вместо code-block
+                container.className = 'text-block';
 
                 q.code.forEach((line, idx) => {
                     const lineDiv = document.createElement('div');
-                    lineDiv.className = 'code-line';
+                    // ИЗМЕНЕНИЕ: используем text-line вместо code-line
+                    lineDiv.className = 'text-line';
                     lineDiv.textContent = line;
 
                     lineDiv.onclick = () => {
                         if (isAnswerChecked) return;
 
-                        container.querySelectorAll('.code-line').forEach(l => l.classList.remove('selected'));
+                        // ИЗМЕНЕНИЕ: selector тоже обновляем
+                        container.querySelectorAll('.text-line').forEach(l => l.classList.remove('selected'));
                         lineDiv.classList.add('selected');
                         userSelection = idx + 1; // 1-based index как в JSON
                     };
@@ -554,29 +557,29 @@
                     correctAnswersCount++;
                     showNotification('Правильно! +10 баллов', 'correct');
                     answerContainer.style.opacity = '0.8';
-                    
+
                     // Обновляем статистику
                     scoreEl.textContent = currentScore;
                     correctEl.textContent = correctAnswersCount;
 
                     // Меняем кнопки
                     checkBtn.style.display = 'none';
-                    
+
                     if (currentQIndex < gameQuestions.length - 1) {
                         nextBtn.style.display = 'flex';
                     } else {
                         finishGame();
                     }
-                    
+
                     isAnswerChecked = true;
                 } else {
                     // НЕПРАВИЛЬНЫЙ ОТВЕТ - сразу завершаем игру
                     showNotification('Неправильно! Игра окончена', 'incorrect');
-                    
+
                     // Обновляем статистику (правильные ответы остаются как есть, счет не меняется)
                     scoreEl.textContent = currentScore;
                     correctEl.textContent = correctAnswersCount;
-                    
+
                     // Показываем результат игры
                     setTimeout(() => {
                         finishGame();
@@ -596,13 +599,13 @@
 
             hintBtn.addEventListener('click', () => {
                 const q = gameQuestions[currentQIndex];
-                
+
                 // Проверяем наличие подсказки
                 if (!q.hint || q.hint.trim() === '') {
                     showNotification("Для этого вопроса подсказка не предусмотрена!", 'incorrect');
                     return;
                 }
-                
+
                 // Отображаем подсказку в модальном окне
                 document.getElementById('hintText').textContent = q.hint;
                 document.getElementById('hintModal').style.display = 'block';
