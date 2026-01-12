@@ -11,6 +11,7 @@ from articles_search import news_router
 from functions.important_articles import important_news_router
 from functions.сonstitution_search import constitution_search_router
 from functions.child_rights_search import child_rights_search_router
+from databases.settings_db import settings_db
 
 load_dotenv()
 
@@ -46,10 +47,15 @@ acts_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_menu')]
 ])
 
-settings_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='💡 Включить уведомления', callback_data='notification_on')],
-    [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_menu')]
-])
+def get_settings_keyboard(user_id: int):
+    voice_enabled = settings_db.get_voice_setting(user_id)
+    voice_text = "🔊 Голосовые ответы: ВКЛ" if voice_enabled else "🔇 Голосовые ответы: ВЫКЛ"
+
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=voice_text, callback_data='toggle_voice_setting')],
+        [InlineKeyboardButton(text='💡 Включить уведомления', callback_data='notification_on')],
+        [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_menu')]
+    ])
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -65,15 +71,37 @@ async def acts_search_handler(callback: types.CallbackQuery):
     await callback.message.edit_text("Выберите категорию актов:", reply_markup=acts_menu)
     await callback.answer()
 
-@dp.callback_query(F.data == 'settings_menu')
-async def settings_menu_handler(callback: types.CallbackQuery):
-     await callback.message.edit_text(text='🚀 Выберите нужную функцию:', reply_markup=settings_menu)
-     await callback.answer()
-
 @dp.callback_query(F.data == 'back_main_menu')
 async def back_main_menu_handler(callback: types.CallbackQuery):
      await callback.message.edit_text(text='🚀 Выберите нужный раздел в меню ниже:', reply_markup=get_main_menu())
      await callback.answer()
+
+
+@dp.callback_query(F.data == 'settings_menu')
+async def settings_menu_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    await callback.message.edit_text(
+        text='🚀 Настройки бота:',
+        reply_markup=get_settings_keyboard(user_id)
+    )
+    await callback.answer()
+
+
+# Добавьте обработчик переключения голоса
+@dp.callback_query(F.data == 'toggle_voice_setting')
+async def toggle_voice_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    current_status = settings_db.get_voice_setting(user_id)
+
+    # Меняем статус на противоположный
+    new_status = not current_status
+    settings_db.set_voice_setting(user_id, new_status)
+
+    # Обновляем клавиатуру
+    await callback.message.edit_reply_markup(reply_markup=get_settings_keyboard(user_id))
+
+    status_text = "включены" if new_status else "отключены"
+    await callback.answer(f"Голосовые ответы {status_text}")
 
 async def main():
     logger.info('Бот запускается...')

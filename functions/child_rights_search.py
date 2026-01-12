@@ -5,6 +5,9 @@ from aiogram.fsm.state import State, StatesGroup
 import logging
 from databases.childrights_db import child_rights_db, initialize_child_rights_law
 from ragsystem import LegalRAGSystem
+from aiogram.types import FSInputFile
+from databases.settings_db import settings_db
+from functions.tts_utils import generate_voice_message, cleanup_voice_file
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -116,6 +119,18 @@ async def process_child_rights_keyword(message: types.Message, state: FSMContext
         truncate_text(response_text),
         reply_markup=get_back_button()
     )
+
+    user_id = message.from_user.id
+    if settings_db.get_voice_setting(user_id):
+        voice_file = await generate_voice_message(message_text)
+        if voice_file:
+            try:
+                audio = FSInputFile(voice_file)
+                await message.answer_voice(voice=audio, caption="🎧 Озвученный ответ")
+            except Exception as e:
+                logger.error(f"Ошибка отправки голоса: {e}")
+            finally:
+                cleanup_voice_file(voice_file)
 
     await state.clear()
 

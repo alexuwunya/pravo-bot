@@ -10,6 +10,9 @@ from bs4 import BeautifulSoup
 
 from databases.database_constitution import constitution_db
 from ragsystem import RAGSystem
+from aiogram.types import FSInputFile
+from databases.settings_db import settings_db
+from functions.tts_utils import generate_voice_message, cleanup_voice_file
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +32,6 @@ async def parse_etalonline_by_document():
                 content = await response.read()
 
         soup = BeautifulSoup(content, 'html.parser')
-        # ... (логика парсинга HTML остается той же) ...
-        # Упростим для примера, предполагая, что логика парсинга верна:
         section_element = soup.find('div', class_='Section1') or soup.find('div', class_='text')  # Добавил fallback
 
         if not section_element:
@@ -125,4 +126,18 @@ async def process_question(message: types.Message, state: FSMContext):
         parse_mode="Markdown",
         reply_markup=get_back_button()
     )
+
+    user_id = message.from_user.id
+    if settings_db.get_voice_setting(user_id):
+        voice_file = await generate_voice_message(answer)
+
+        if voice_file:
+            try:
+                audio = FSInputFile(voice_file)
+                await message.answer_voice(voice=audio, caption="🎧 Озвученный ответ")
+            except Exception as e:
+                logger.error(f"Ошибка отправки голоса: {e}")
+            finally:
+                cleanup_voice_file(voice_file)
+
     await state.clear()
