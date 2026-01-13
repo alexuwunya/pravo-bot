@@ -1,7 +1,6 @@
 import os
 import re
 import logging
-import json
 import asyncio
 from sentence_transformers import SentenceTransformer
 from qdrant_client.models import VectorParams, Distance, PointStruct
@@ -27,61 +26,75 @@ class ModelManager:
 
 
 class RAGSystem:
-    def __init__(self, paragraph, collection_name="constitution_articles", document_name='Конституция'):
+    def __init__(self, paragraph: str, collection_name: str, document_name: str):
         self.api_key = os.getenv("GROQ_API_KEY")
         if not self.api_key:
-            logger.warning("⚠️ GROQ_API_KEY не найден! RAG не будет работать корректно.")
+            logger.warning("⚠️ GROQ_API_KEY не найден!")
+
         self.client = qdrant_manager.get_client()
         self.groq_client = AsyncGroq(api_key=self.api_key)
         self.llm_model = "llama-3.3-70b-versatile"
         self.codex = paragraph
         self.document_name = document_name
-        self.collection_name = collection_name
+
+        safe_suffix = re.sub(r'[^a-zA-Z0-9_]', '', collection_name.lower().replace(' ', '_'))
+        self.collection_name = f"legal_docs_{safe_suffix}" if not collection_name.startswith(
+            "legal_") else collection_name
+
         self.model = None
 
     async def initialize(self):
-        logger.info(f"🔍 Init RAG (Groq) для: {self.document_name}, Коллекция: {self.collection_name}")
-
+        logger.info(f"🔍 Init RAG для: {self.document_name}, Коллекция: {self.collection_name}")
         loop = asyncio.get_running_loop()
         self.model = await loop.run_in_executor(None, ModelManager.get_model)
 
-        self._validate_input_text()
-        await self.create_embeddings_if_not_exists()
-
-    def _validate_input_text(self):
         if not self.codex or len(self.codex.strip()) < 100:
-            logger.error(f"Текст для {self.document_name} слишком короткий.")
-            return
+            logger.error(f"❌ Текст для {self.document_name} слишком короткий или пуст.")
+            return False
 
-        if "О правах ребенка" in self.codex and "Конституция" in self.document_name:
-            logger.warning("⚠️ Возможно перепутан текст документа (Конституция <> Права ребенка).")
+        await self.create_embeddings_if_not_exists()
+        return True
 
     def get_articles_chunks(self):
-        if not self.codex:
-            return []
+        if not self.codex: return []
+
+        # 🔥 ИСПРАВЛЕНИЕ REGEX:
+        # 1. (?i) - игнор регистра
+        # 2. \s+ - обязательный пробел после слова Статья
+        # 3. \d+ - номер
+        # 4. \s* - (ВАЖНО) возможные пробелы или перенос строки перед точкой
+        # 5. \.? - необязательная точка
+        split_pattern = r'(?i)((?:Статья|ГЛАВА)\s+\d+\s*\.?|РАЗДЕЛ\s+[IVX]+)'
+
+        raw_chunks = re.split(split_pattern, self.codex)
 
         chunks = []
-        raw_chunks = re.split(r'(Статья \d+\.|ГЛАВА \d+)', self.codex)
-
         current_header = self.document_name
+
+        # Если сплит не сработал (мало частей), берем весь текст
+        if len(raw_chunks) < 2: raw_chunks = [self.codex]
 
         for i in range(len(raw_chunks)):
             segment = raw_chunks[i].strip()
-            if not segment:
-                continue
+            if not segment: continue
 
-            if re.match(r'(Статья \d+\.|ГЛАВА \d+)', segment):
+            # Проверяем, является ли сегмент заголовком (по тому же паттерну)
+            if re.fullmatch(split_pattern, segment):
                 current_header = segment
+                # Нормализуем заголовок (убираем лишние переносы, например "Статья 4\n." -> "Статья 4.")
+                current_header = re.sub(r'\s+', ' ', current_header).strip()
             else:
                 full_text = f"{current_header}\n{segment}"
+                if len(full_text) > 3000: full_text = full_text[:3000] + "..."
+
                 chunks.append({
                     'text': full_text,
                     'article_source': self.document_name,
                     'article_title': current_header,
-                    'paragraph_index': i
+                    'paragraph_index': len(chunks)
                 })
 
-        logger.info(f"📄 Создано {len(chunks)} чанков для {self.document_name}")
+        logger.info(f"📄 Разбив текст {self.document_name}: получено {len(chunks)} чанков")
         return chunks
 
     async def create_embeddings_if_not_exists(self):
@@ -102,10 +115,9 @@ class RAGSystem:
             else:
                 count_result = await loop.run_in_executor(None, lambda: self.client.count(self.collection_name))
                 if count_result.count == 0:
-                    logger.info(f"⚠️ Коллекция {self.collection_name} пуста, пересоздаю эмбеддинги.")
                     await self.create_embeddings()
         except Exception as e:
-            logger.error(f"❌ Ошибка Qdrant: {e}")
+            logger.error(f"❌ Ошибка Qdrant Init: {e}")
 
     async def create_embeddings(self):
         try:
@@ -114,8 +126,7 @@ class RAGSystem:
                 return
 
             texts = [f"passage: {c['text']}" for c in chunks]
-
-            logger.info("⏳ Генерация векторов (в фоне)...")
+            logger.info(f"⏳ Генерация векторов для {self.document_name} ({len(texts)} шт)...")
 
             loop = asyncio.get_running_loop()
             embeddings = await loop.run_in_executor(
@@ -123,19 +134,16 @@ class RAGSystem:
                 lambda: self.model.encode(texts, normalize_embeddings=True)
             )
 
-            points = []
-            for i, (chunk, vector) in enumerate(zip(chunks, embeddings)):
-                points.append(PointStruct(
-                    id=i,
-                    vector=vector.tolist(),
-                    payload=chunk
-                ))
+            points = [
+                PointStruct(id=i, vector=vector.tolist(), payload=chunk)
+                for i, (chunk, vector) in enumerate(zip(chunks, embeddings))
+            ]
 
             await loop.run_in_executor(
                 None,
                 lambda: self.client.upsert(collection_name=self.collection_name, points=points)
             )
-            logger.info(f"✅ Загружено {len(points)} векторов в {self.collection_name}")
+            logger.info(f"✅ Векторы загружены в {self.collection_name}")
 
         except Exception as e:
             logger.error(f"❌ Ошибка создания эмбеддингов: {e}")
@@ -145,21 +153,16 @@ class RAGSystem:
 
         def _encode_and_search():
             query_vector = self.model.encode(f"query: {question}", normalize_embeddings=True)
-            search_result = self.client.query_points(
+            return self.client.query_points(
                 collection_name=self.collection_name,
                 query=query_vector,
                 limit=limit
             )
-            return search_result
 
         try:
             result = await loop.run_in_executor(None, _encode_and_search)
-
-            context_parts = []
-            for hit in result.points:
-                context_parts.append(
-                    f"--- {hit.payload.get('article_title', 'Отрывок')} ---\n{hit.payload.get('text', '')}")
-
+            context_parts = [f"--- {hit.payload.get('article_title', 'Отрывок')} ---\n{hit.payload.get('text', '')}" for
+                             hit in result.points]
             return "\n\n".join(context_parts)
         except Exception as e:
             logger.error(f"Ошибка поиска: {e}")
@@ -172,10 +175,16 @@ class RAGSystem:
 
             context = await self.search_relevant_chunks_async(question)
             if not context:
-                return "❌ Не удалось найти информацию в документах."
+                return "❌ Не удалось найти релевантную информацию в документе."
 
-            system_prompt = f"Ты юрист-консультант по документу: {self.document_name}. Отвечай кратко, по сути, придерживайся длины ответа в 100-200 символов, не исользуй специальные символы Markdown разметки ссылаяйся на статьи. Представь ответ, готовый к отображению в telegram"
-            user_content = f"Контекст:\n{context}\n\nВопрос: {question}"
+            system_prompt = (
+                f"Ты юрист-педагог для детей по документу: {self.document_name}. "
+                "Отвечай ТОЛЬКО на РУССКОМ языке, кратко, понятно для детей, упрощая некоторые подробности. Оптимальная длина ответа 150-300 символов"
+                "Не используй латиницу"
+                "Модешь ссылаться на номера статей или глав, если они есть в контексте. "
+                "Не используй Markdown форматирование (жирный, курсив), пиши обычным текстом. Ответ должен быть корректен для отправки в чате Telegram"
+            )
+            user_content = f"Контекст:\n{context}\n\nВопрос пользователя: {question}"
 
             chat_completion = await self.groq_client.chat.completions.create(
                 messages=[
@@ -185,16 +194,8 @@ class RAGSystem:
                 model=self.llm_model,
                 temperature=0.3,
             )
-
             return chat_completion.choices[0].message.content
 
         except Exception as e:
-            logger.error(f"Ошибка RAG (Groq): {e}")
-            return "Произошла внутренняя ошибка системы."
-
-
-class LegalRAGSystem(RAGSystem):
-    def __init__(self, paragraph, document_name):
-        safe_name = re.sub(r'[^a-zA-Z0-9_]', '', document_name.lower().replace(' ', '_'))
-        collection_name = f"legal_{safe_name}"
-        super().__init__(paragraph, collection_name, document_name)
+            logger.error(f"Ошибка LLM (Groq): {e}")
+            return "Произошла ошибка при генерации ответа."

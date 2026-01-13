@@ -1,129 +1,66 @@
-import sqlite3
+import logging
 import re
-import requests
 from bs4 import BeautifulSoup
+from databases.base_legal_db import BaseLegalDatabase
 
-class ChildRightsDatabase:
-    def __init__(self, db_path="child_rights.db"):
-        self.db_path = db_path
-        self.init_database()
+logger = logging.getLogger(__name__)
 
-    def init_database(self):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS child_rights_text (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                full_text TEXT,
-                url TEXT,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+class ChildRightsDatabase(BaseLegalDatabase):
+    def __init__(self):
+        super().__init__("child_rights.db", "child_rights")
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS child_rights_index (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sentence TEXT,
-                sentence_index INTEGER,
-                keywords TEXT,
-                article_number TEXT
-            )
-        ''')
+    async def update_from_source(self) -> bool:
+        url = "https://etalonline.by/document/?regnum=v19302570"
+        logger.info(f"🔄 Обновление Прав Ребенка из {url}")
 
-        conn.commit()
-        conn.close()
+        html = await self._fetch_html(url)
+        if not html: return False
 
-    def is_law_loaded(self):
-        """Проверяет, загружен ли закон в базу данных"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('SELECT COUNT(*) FROM child_rights_text')
-        count = cursor.fetchone()[0]
-
-        cursor.execute('SELECT COUNT(*) FROM child_rights_index')
-        index_count = cursor.fetchone()[0]
-
-        conn.close()
-
-        return count > 0 and index_count > 0
-
-    def parse_law_from_url(self, url="https://etalonline.by/document/?regnum=v19302570"):
-        """Парсит закон с сайта etalonline.by"""
         try:
-            response = requests.get(url)
-            response.raise_for_status()
+            soup = BeautifulSoup(html, 'html.parser')
+            container = soup.find('div', {'class': 'text'}) or soup.find('div', {'class': 'Section1'})
 
-            soup = BeautifulSoup(response.content, 'html.parser')
+            if container:
+                for tag in container(["script", "style"]):
+                    tag.decompose()
+                full_text = container.get_text(separator='\n', strip=True)
+            else:
+                full_text = soup.get_text(separator='\n', strip=True)
 
-            content_div = soup.find('div', {'id': 'userContent'})
-            if not content_div:
-                raise Exception("Не найден элемент с контентом закона")
+            # --- 🔥 ОБРЕЗКА МУСОРА ---
+            # Маркеры могут отличаться, используем надежные фразы из начала закона
+            start_markers = ["ЗАКОН РЕСПУБЛИКИ БЕЛАРУСЬ", "О правах ребенка", "Настоящий Закон основывается"]
+            end_marker = "Президент Республики Беларусь"
 
-            for element in content_div.find_all(['script', 'style', 'a']):
-                element.decompose()
+            start_index = -1
+            for marker in start_markers:
+                idx = full_text.find(marker)
+                if idx != -1:
+                    start_index = idx
+                    break
 
-            full_text = content_div.get_text(separator='\n', strip=True)
+            end_index = full_text.rfind(end_marker)
 
-            # Очищаем текст от лишних пробелов и переносов
-            lines = [line.strip() for line in full_text.split('\n') if line.strip()]
-            clean_text = '\n'.join(lines)
+            if start_index != -1 and end_index != -1:
+                # + запас на подпись
+                full_text = full_text[start_index: end_index + 100]
+                # Обрезка хвоста
+                final_cut = full_text.find("А.Лукашенко")
+                if final_cut != -1:
+                    full_text = full_text[:final_cut + 11]
 
-            return clean_text, url
+            full_text = re.sub(r'\n{3,}', '\n\n', full_text)
 
+            if "ребен" not in full_text.lower():
+                return False
+
+            self.save_text(full_text, url)
+            logger.info(f"✅ Права ребенка обновлены. Длина: {len(full_text)}")
+            return True
         except Exception as e:
-            print(f"Ошибка при парсинге закона: {e}")
-            return None, None
+            logger.error(f"Parse Error: {e}")
+            return False
 
-    def save_law(self, full_text, url):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
 
-        cursor.execute('DELETE FROM child_rights_text')
-        cursor.execute('DELETE FROM child_rights_index')
-
-        cursor.execute('''
-            INSERT INTO child_rights_text (full_text, url)
-            VALUES (?, ?)
-        ''', (full_text, url))
-
-        law_id = cursor.lastrowid
-
-        sentences = re.split(r'[.!?]+', full_text)
-        sentences = [s.strip() for s in sentences if s.strip()]
-
-        conn.commit()
-        conn.close()
-
-        return law_id
-
-    def get_law_text(self):
-        """Получает полный текст закона из БД"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('SELECT full_text FROM child_rights_text LIMIT 1')
-        result = cursor.fetchone()
-
-        conn.close()
-
-        if result:
-            return result[0]
-        return None
-
-# Создаем глобальный экземпляр базы данных
 child_rights_db = ChildRightsDatabase()
-
-# Функция для загрузки и инициализации закона
-def initialize_child_rights_law():
-    if not child_rights_db.is_law_loaded():
-        print("Загрузка закона 'О правах ребенка'...")
-        text, url = child_rights_db.parse_law_from_url()
-        if text:
-            child_rights_db.save_law(text, url)
-            print("Закон успешно загружен и сохранен в БД")
-        else:
-            print("Ошибка загрузки закона")
-    else:
-        print("Закон уже загружен в БД")
