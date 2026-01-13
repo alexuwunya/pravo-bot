@@ -86,18 +86,14 @@ async def settings_menu_handler(callback: types.CallbackQuery):
     )
     await callback.answer()
 
-
-# Добавьте обработчик переключения голоса
 @dp.callback_query(F.data == 'toggle_voice_setting')
 async def toggle_voice_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     current_status = settings_db.get_voice_setting(user_id)
 
-    # Меняем статус на противоположный
     new_status = not current_status
     settings_db.set_voice_setting(user_id, new_status)
 
-    # Обновляем клавиатуру
     await callback.message.edit_reply_markup(reply_markup=get_settings_keyboard(user_id))
 
     status_text = "включены" if new_status else "отключены"

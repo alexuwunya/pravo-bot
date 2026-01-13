@@ -21,19 +21,15 @@ class LegalSearchEngine:
         self.rag = None
         self._init_lock = asyncio.Lock()
 
-        # 🔥 ИСПРАВЛЕНИЕ: Генерируем уникальный стейт для каждого движка
-        # Имя стейта будет уникальным: "waiting_constitution", "waiting_child_rights" и т.д.
         self.waiting_state = State(state=f"waiting_{collection_name}")
 
     async def get_rag(self):
-        """Ленивая инициализация RAG"""
         if self.rag:
             return self.rag
 
         async with self._init_lock:
             if self.rag: return self.rag
 
-            # Проверяем, есть ли данные. Если нет - пробуем загрузить.
             if not self.db.is_loaded():
                 logger.info(f"📥 База {self.doc_name} пуста/не найдена. Запускаю парсинг...")
                 success = await self.db.update_from_source()
@@ -57,21 +53,17 @@ class LegalSearchEngine:
 
     def register_handlers(self, trigger_callback: str):
 
-        # 1. Вход в режим поиска
         @self.router.callback_query(F.data == trigger_callback)
         async def start_search_handler(callback: types.CallbackQuery, state: FSMContext):
             await callback.message.edit_text(
                 f'🔍 Поиск по документу: "{self.doc_name}"\n\nВведите ваш вопрос или ключевые слова:',
                 reply_markup=self._get_back_button()
             )
-            # Устанавливаем УНИКАЛЬНОЕ состояние этого движка
             await state.set_state(self.waiting_state)
             await callback.answer()
 
-        # 2. Обработка вопроса (Фильтруем по УНИКАЛЬНОМУ состоянию)
         @self.router.message(self.waiting_state)
         async def process_query_handler(message: types.Message, state: FSMContext):
-            # Проверка active_engine больше не нужна, так как state уникален
 
             query = message.text.strip()
             if not query:
@@ -98,7 +90,6 @@ class LegalSearchEngine:
                 reply_markup=self._get_back_button()
             )
 
-            # TTS
             user_id = message.from_user.id
             if settings_db.get_voice_setting(user_id):
                 voice_file = await generate_voice_message(answer)

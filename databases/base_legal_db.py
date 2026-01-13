@@ -25,7 +25,6 @@ class BaseLegalDatabase:
             ''')
 
     def is_loaded(self) -> bool:
-        """Проверяет, есть ли данные в базе"""
         try:
             with self._get_conn() as conn:
                 res = conn.execute(f"SELECT COUNT(*) FROM {self.table_name}").fetchone()
@@ -49,7 +48,6 @@ class BaseLegalDatabase:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
                     if resp.status == 200:
-                        # Используем read() и декодируем вручную для надежности с кириллицей
                         content = await resp.read()
                         return content.decode('utf-8', errors='ignore')
         except Exception as e:

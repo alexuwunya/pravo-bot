@@ -28,8 +28,7 @@ class ChildRightsDatabase(BaseLegalDatabase):
             else:
                 full_text = soup.get_text(separator='\n', strip=True)
 
-            # --- 🔥 ОБРЕЗКА МУСОРА ---
-            # Маркеры могут отличаться, используем надежные фразы из начала закона
+
             start_markers = ["ЗАКОН РЕСПУБЛИКИ БЕЛАРУСЬ", "О правах ребенка", "Настоящий Закон основывается"]
             end_marker = "Президент Республики Беларусь"
 
@@ -43,9 +42,7 @@ class ChildRightsDatabase(BaseLegalDatabase):
             end_index = full_text.rfind(end_marker)
 
             if start_index != -1 and end_index != -1:
-                # + запас на подпись
                 full_text = full_text[start_index: end_index + 100]
-                # Обрезка хвоста
                 final_cut = full_text.find("А.Лукашенко")
                 if final_cut != -1:
                     full_text = full_text[:final_cut + 11]

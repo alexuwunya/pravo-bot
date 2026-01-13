@@ -58,12 +58,6 @@ class RAGSystem:
     def get_articles_chunks(self):
         if not self.codex: return []
 
-        # 🔥 ИСПРАВЛЕНИЕ REGEX:
-        # 1. (?i) - игнор регистра
-        # 2. \s+ - обязательный пробел после слова Статья
-        # 3. \d+ - номер
-        # 4. \s* - (ВАЖНО) возможные пробелы или перенос строки перед точкой
-        # 5. \.? - необязательная точка
         split_pattern = r'(?i)((?:Статья|ГЛАВА)\s+\d+\s*\.?|РАЗДЕЛ\s+[IVX]+)'
 
         raw_chunks = re.split(split_pattern, self.codex)
@@ -71,17 +65,14 @@ class RAGSystem:
         chunks = []
         current_header = self.document_name
 
-        # Если сплит не сработал (мало частей), берем весь текст
         if len(raw_chunks) < 2: raw_chunks = [self.codex]
 
         for i in range(len(raw_chunks)):
             segment = raw_chunks[i].strip()
             if not segment: continue
 
-            # Проверяем, является ли сегмент заголовком (по тому же паттерну)
             if re.fullmatch(split_pattern, segment):
                 current_header = segment
-                # Нормализуем заголовок (убираем лишние переносы, например "Статья 4\n." -> "Статья 4.")
                 current_header = re.sub(r'\s+', ' ', current_header).strip()
             else:
                 full_text = f"{current_header}\n{segment}"
