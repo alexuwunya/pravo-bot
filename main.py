@@ -34,7 +34,7 @@ dp.include_router(child_rights_search_router)
 
 def get_main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='💡 Поиск в конституции', callback_data='konstitution_search')],
+        [InlineKeyboardButton(text='💡 Поиск в конституции', callback_data='constitution_search')],
         [InlineKeyboardButton(text='🔎 Поиск статей', callback_data='state_search')],
         [InlineKeyboardButton(text='⤴ Важные статьи', callback_data='top_states')],
         [InlineKeyboardButton(text='📋 Поиск по актам', callback_data='acts_search')],
