@@ -2,7 +2,7 @@ import logging
 import asyncio
 from aiogram import types, Router, F
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State  # Импортируем State напрямую, StatesGroup не нужен
+from aiogram.fsm.state import State
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 
 from ragsystem import RAGSystem
@@ -70,6 +70,14 @@ class LegalSearchEngine:
                 await message.answer("Пожалуйста, введите текст вопроса.")
                 return
 
+            data = await state.get_data()
+            last_voice_id = data.get('last_voice_id')
+            if last_voice_id:
+                try:
+                    await message.bot.delete_message(chat_id=message.chat.id, message_id=last_voice_id)
+                except:
+                    pass
+
             wait_msg = await message.answer(f"🤔 Ищу ответ в: {self.doc_name}...")
 
             rag = await self.get_rag()
@@ -96,13 +104,12 @@ class LegalSearchEngine:
                 if voice_file:
                     try:
                         audio = FSInputFile(voice_file)
-                        await message.answer_voice(voice=audio, caption="🎧 Озвученный ответ")
+                        voice_msg = await message.answer_voice(voice=audio, caption="🎧 Озвученный ответ")
+                        await state.update_data(last_voice_id=voice_msg.message_id)
                     except Exception as e:
                         logger.error(f"TTS Error: {e}")
                     finally:
                         cleanup_voice_file(voice_file)
-
-            await state.clear()
 
     def _get_back_button(self):
         return InlineKeyboardMarkup(inline_keyboard=[
