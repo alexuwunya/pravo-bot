@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from articles_search import news_router
@@ -76,9 +77,19 @@ async def acts_search_handler(callback: types.CallbackQuery):
     await callback.answer()
 
 @dp.callback_query(F.data == 'back_main_menu')
-async def back_main_menu_handler(callback: types.CallbackQuery):
-     await callback.message.edit_text(text='🚀 Выберите нужный раздел в меню ниже:', reply_markup=get_main_menu())
-     await callback.answer()
+async def back_main_menu_handler(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    last_voice_id = data.get('last_voice_id')
+
+    if last_voice_id:
+        try:
+            await bot.delete_message(chat_id=callback.message.chat.id, message_id=last_voice_id)
+        except Exception as e:
+            logger.error(f"Не удалось удалить голосовое сообщение при возврате в меню: {e}")
+
+    await state.clear()
+    await callback.message.edit_text(text='🚀 Выберите нужный раздел в меню ниже:', reply_markup=get_main_menu())
+    await callback.answer()
 
 
 @dp.callback_query(F.data == 'settings_menu')
