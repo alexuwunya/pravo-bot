@@ -6,13 +6,13 @@ from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.context import FSMContext
 
 from articles_search import news_router
 from functions.important_articles import important_news_router
 from functions.сonstitution_search import constitution_search_router
 from functions.child_rights_search import child_rights_search_router
 from databases.settings_db import settings_db
+from databases.news_database import news_db
 
 load_dotenv()
 
@@ -52,9 +52,12 @@ def get_settings_keyboard(user_id: int):
     voice_enabled = settings_db.get_voice_setting(user_id)
     voice_text = "🔊 Голосовые ответы: ВКЛ" if voice_enabled else "🔇 Голосовые ответы: ВЫКЛ"
 
+    notif_enabled = news_db.get_notification_status(user_id)
+    notif_text = "🔔 Уведомления: ВКЛ" if notif_enabled else "🔕 Уведомления: ВЫКЛ"
+
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=voice_text, callback_data='toggle_voice_setting')],
-        [InlineKeyboardButton(text='💡 Включить уведомления', callback_data='notification_on')],
+        [InlineKeyboardButton(text=notif_text, callback_data='toggle_notification_setting')],
         [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_menu')]
     ])
 
@@ -73,20 +76,9 @@ async def acts_search_handler(callback: types.CallbackQuery):
     await callback.answer()
 
 @dp.callback_query(F.data == 'back_main_menu')
-async def back_main_menu_handler(callback: types.CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    last_voice_id = data.get('last_voice_id')
-
-    if last_voice_id:
-        try:
-            await bot.delete_message(chat_id=callback.message.chat.id, message_id=last_voice_id)
-        except Exception as e:
-            logger.error(f"Не удалось удалить голосовое сообщение: {e}")
-
-    await state.clear()
-
-    await callback.message.edit_text(text='🚀 Выберите нужный раздел в меню ниже:', reply_markup=get_main_menu())
-    await callback.answer()
+async def back_main_menu_handler(callback: types.CallbackQuery):
+     await callback.message.edit_text(text='🚀 Выберите нужный раздел в меню ниже:', reply_markup=get_main_menu())
+     await callback.answer()
 
 
 @dp.callback_query(F.data == 'settings_menu')
@@ -110,6 +102,19 @@ async def toggle_voice_handler(callback: types.CallbackQuery):
 
     status_text = "включены" if new_status else "отключены"
     await callback.answer(f"Голосовые ответы {status_text}")
+
+@dp.callback_query(F.data == 'toggle_notification_setting')
+async def toggle_notification_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    current_status = news_db.get_notification_status(user_id)
+
+    new_status = not current_status
+    news_db.set_notification_status(user_id, new_status)
+
+    await callback.message.edit_reply_markup(reply_markup=get_settings_keyboard(user_id))
+
+    status_text = "включены" if new_status else "отключены"
+    await callback.answer(f"Уведомления {status_text}")
 
 async def main():
     logger.info('Бот запускается...')
