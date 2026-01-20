@@ -9,6 +9,8 @@ from ragsystem import RAGSystem
 from databases.settings_db import settings_db
 from functions.tts_utils import generate_voice_message, cleanup_voice_file
 
+from functions.stt_utils import handle_voice_message
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,16 +58,38 @@ class LegalSearchEngine:
         @self.router.callback_query(F.data == trigger_callback)
         async def start_search_handler(callback: types.CallbackQuery, state: FSMContext):
             await callback.message.edit_text(
-                f'🔍 Поиск по документу: "{self.doc_name}"\n\nВведите ваш вопрос или ключевые слова:',
+                f'🔍 Поиск по документу: "{self.doc_name}"\n\n'
+                f'Введите ваш вопрос текстом'
+                f'{" или запишите голосовое сообщение 🎙" if settings_db.get_voice_input_setting(callback.from_user.id) else ""}:',
                 reply_markup=self._get_back_button()
             )
             await state.set_state(self.waiting_state)
             await callback.answer()
 
-        @self.router.message(self.waiting_state)
+        @self.router.message(self.waiting_state, F.text | F.voice)
         async def process_query_handler(message: types.Message, state: FSMContext):
+            user_id = message.from_user.id
+            query = ""
 
-            query = message.text.strip()
+            if message.voice:
+                if not settings_db.get_voice_input_setting(user_id):
+                    await message.answer(
+                        "⚠️ Голосовой ввод отключен в настройках. Пожалуйста, напишите вопрос текстом или включите опцию в меню.")
+                    return
+
+                processing_msg = await message.answer("👂 Слушаю и распознаю вопрос...")
+
+                query = await handle_voice_message(message.bot, message)
+
+                if not query:
+                    await processing_msg.edit_text(
+                        "❌ Не удалось распознать речь. Попробуйте еще раз или напишите текстом.")
+                    return
+
+                await processing_msg.edit_text(f"🗣 Вы спросили: *{query}*", parse_mode="Markdown")
+            else:
+                query = message.text.strip()
+
             if not query:
                 await message.answer("Пожалуйста, введите текст вопроса.")
                 return
@@ -98,7 +122,6 @@ class LegalSearchEngine:
                 reply_markup=self._get_back_button()
             )
 
-            user_id = message.from_user.id
             if settings_db.get_voice_setting(user_id):
                 voice_file = await generate_voice_message(answer)
                 if voice_file:

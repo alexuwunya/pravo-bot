@@ -53,11 +53,15 @@ def get_settings_keyboard(user_id: int):
     voice_enabled = settings_db.get_voice_setting(user_id)
     voice_text = "🔊 Голосовые ответы: ВКЛ" if voice_enabled else "🔇 Голосовые ответы: ВЫКЛ"
 
+    voice_input_enabled = settings_db.get_voice_input_setting(user_id)
+    input_text = "🎤 Голосовой ввод: ВКЛ" if voice_input_enabled else "🎤 Голосовой ввод: ВЫКЛ"
+
     notif_enabled = news_db.get_notification_status(user_id)
     notif_text = "🔔 Уведомления: ВКЛ" if notif_enabled else "🔕 Уведомления: ВЫКЛ"
 
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=voice_text, callback_data='toggle_voice_setting')],
+        [InlineKeyboardButton(text=input_text, callback_data='toggle_voice_input')],
         [InlineKeyboardButton(text=notif_text, callback_data='toggle_notification_setting')],
         [InlineKeyboardButton(text='◀️ Назад', callback_data='back_main_menu')]
     ])
@@ -126,6 +130,19 @@ async def toggle_notification_handler(callback: types.CallbackQuery):
 
     status_text = "включены" if new_status else "отключены"
     await callback.answer(f"Уведомления {status_text}")
+
+@dp.callback_query(F.data == 'toggle_voice_input')
+async def toggle_voice_input_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    current_status = settings_db.get_voice_input_setting(user_id)
+
+    new_status = not current_status
+    settings_db.set_voice_input_setting(user_id, new_status)
+
+    await callback.message.edit_reply_markup(reply_markup=get_settings_keyboard(user_id))
+
+    status_text = "включен 🎙" if new_status else "отключен ⌨️"
+    await callback.answer(f"Голосовой ввод {status_text}")
 
 async def main():
     logger.info('Бот запускается...')
