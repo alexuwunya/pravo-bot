@@ -447,34 +447,35 @@
     
             function renderFindError(q) {
                 userSelection = null;
-    
+
                 const container = document.createElement('div');
                 container.className = 'options-container';
-    
+
                 q.code.forEach((line, idx) => {
                     const btn = document.createElement('div');
                     btn.className = 'option-btn';
-                    
+
                     btn.innerHTML = `
                         <div class="checkbox"></div>
                         <div class="option-text">${line}</div>
                     `;
-    
+
                     btn.onclick = () => {
                         if (isAnswerChecked) return;
-    
+
                         container.querySelectorAll('.option-btn').forEach(b => {
                             b.classList.remove('selected');
                             b.querySelector('.checkbox').classList.remove('checked');
                         });
                         btn.classList.add('selected');
                         btn.querySelector('.checkbox').classList.add('checked');
-                        userSelection = idx + 1;
+
+                        userSelection = idx;
                     };
-    
+
                     container.appendChild(btn);
                 });
-    
+
                 answerContainer.appendChild(container);
             }
     
