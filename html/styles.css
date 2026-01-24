@@ -1209,3 +1209,12 @@ body {
         padding: 15px;
     }
 }
+.correct-answer {
+    animation: fadeIn 0.5s ease;
+    margin-top: 15px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
