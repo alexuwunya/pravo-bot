@@ -5,3 +5,4 @@ __pycache__/
 .vscode/
 photos/
 users_db/
+.env

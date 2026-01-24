@@ -558,6 +558,7 @@
                     isAnswerChecked = true;
                 } else {
                     showNotification('Неправильно! Игра окончена', 'incorrect');
+                    showCorrectAnswer();
                     scoreEl.textContent = currentScore;
                     correctEl.textContent = correctAnswersCount;
                     setTimeout(() => {
@@ -651,7 +652,46 @@
                     resultMessage.style.display = 'none';
                 }, 2000);
             }
-    
+            function showCorrectAnswer() {
+                const q = gameQuestions[currentQIndex];
+                let correctAnswerText = '';
+                
+                switch (q.type) {
+                    case 'single':
+                        correctAnswerText = q.options[q.correct];
+                        break;
+                    case 'multiple':
+                        const correctOptions = q.correct.map(idx => q.options[idx]);
+                        correctAnswerText = correctOptions.join(', ');
+                        break;
+                    case 'matching':
+                        correctAnswerText = Object.entries(q.correctPairs)
+                            .map(([left, right]) => `${left} → ${right}`)
+                            .join('<br>');
+                        break;
+                    case 'sequence':
+                        const correctOrder = q.correctOrder.map(idx => q.steps[idx]);
+                        correctAnswerText = correctOrder.map((step, i) => `${i+1}. ${step}`).join('<br>');
+                        break;
+                    case 'fill-blanks':
+                        correctAnswerText = q.correct.map((ans, i) => `${i+1}. ${ans}`).join('<br>');
+                        break;
+                    case 'find-error':
+                        correctAnswerText = `Ошибка в строке ${q.errorLine + 1}:<br>${q.code[q.errorLine]}`;
+                        break;
+                }
+                
+                const correctAnswerDiv = document.createElement('div');
+                correctAnswerDiv.className = 'correct-answer';
+                correctAnswerDiv.innerHTML = `
+                    <div style="margin-top: 20px; padding: 15px; background: #e8f5e9; border-radius: 10px; border-left: 4px solid #2ecc71;">
+                        <strong style="color: #27ae60;">Правильный ответ:</strong><br>
+                        ${correctAnswerText}
+                    </div>
+                `;
+                    answerContainer.appendChild(correctAnswerDiv);
+                }
+
             initGame();
         });
     </script>
